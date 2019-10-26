@@ -1,6 +1,8 @@
-import { Common, Events } from './core';
+import { Common, Events, Mouse } from './core';
 import { Vector, Vertex, Vertices, Bounds, Axes } from './geometry';
 import { Body, Impulse } from './body';
+import { objectTypeSpreadProperty } from '@babel/types';
+import { brotliDecompressSync } from 'zlib';
 
 /**
 * The `Matter.Constraint` module contains methods for creating and manipulating constraints.
@@ -20,14 +22,14 @@ export class Constraint {
   public id: number;
   public label = 'Constraint';
   public type = 'constraint';
-  public bodyA: Body;
-  public bodyB: Body;
-  public pointA: Vector;
-  public pointB: Vector;
+  public bodyA: Body | undefined;
+  public bodyB: Body | undefined;
+  public pointA: Vector | undefined;
+  public pointB: Vector | undefined;
   length: number;
-  stiffness: number;
-  damping: number;
-  angularStiffness: number;
+  public stiffness: number = 0.7;
+  public damping: number = 0;
+  public angularStiffness: number = 0;
   angleA: number;
   angleB: number;
   //plugin = {};
@@ -44,32 +46,35 @@ export class Constraint {
    * @return {constraint} constraint
    */
 
-  public static create(options) {
-    var constraint = options;
+  public constructor(options?: any) {
+    this.id = Common.nextId();
+    this.label = this.label || 'Constraint';
+    this.type = 'constraint';
+
+    if (options !== undefined) {
+      Object.assign(this, options);
+    }
 
     // if bodies defined but no points, use body centre
-    if (constraint.bodyA && !constraint.pointA)
-      constraint.pointA = { x: 0, y: 0 };
-    if (constraint.bodyB && !constraint.pointB)
-      constraint.pointB = { x: 0, y: 0 };
+    if (this.bodyA && !this.pointA)
+      this.pointA = new Vector();
+    if (this.bodyB && !this.pointB)
+      this.pointB = { x: 0, y: 0 };
 
     // calculate static length using initial world space points
-    var initialPointA = constraint.bodyA ? Vector.add(constraint.bodyA.position, constraint.pointA) : constraint.pointA,
-      initialPointB = constraint.bodyB ? Vector.add(constraint.bodyB.position, constraint.pointB) : constraint.pointB,
-      length = Vector.magnitude(Vector.sub(initialPointA, initialPointB));
+    const initialPointA = this.bodyA !== Body.None ? Vector.add(this.bodyA.position, this.pointA) : this.pointA,
+    const initialPointB = this.bodyB !== Body.None ? Vector.add(this.bodyB.position, this.pointB) : this.pointB,
+    const length = Vector.magnitude(Vector.sub(initialPointA, initialPointB));
 
-    constraint.length = typeof constraint.length !== 'undefined' ? constraint.length : length;
+    this.length = typeof this.length !== 'undefined' ? this.length : length;
 
     // option defaults
-    constraint.id = constraint.id || Common.nextId();
-    constraint.label = constraint.label || 'Constraint';
-    constraint.type = 'constraint';
-    constraint.stiffness = constraint.stiffness || (constraint.length > 0 ? 1 : 0.7);
-    constraint.damping = constraint.damping || 0;
-    constraint.angularStiffness = constraint.angularStiffness || 0;
-    constraint.angleA = constraint.bodyA ? constraint.bodyA.angle : constraint.angleA;
-    constraint.angleB = constraint.bodyB ? constraint.bodyB.angle : constraint.angleB;
-    constraint.plugin = {};
+
+    this.stiffness = this.stiffness || (this.length > 0 ? 1 : 0.7);
+    this.damping = this.damping || 0;
+    this.angularStiffness = this.angularStiffness || 0;
+    this.angleA = this.bodyA ? this.bodyA.angle : this.angleA;
+    this.angleB = this.bodyB ? this.bodyB.angle : this.angleB;
 
     // render
     var render = {
@@ -80,17 +85,14 @@ export class Constraint {
       anchors: true
     };
 
-    if (constraint.length === 0 && constraint.stiffness > 0.1) {
+    if (this.length === 0 && this.stiffness > 0.1) {
       render.type = 'pin';
       render.anchors = false;
-    } else if (constraint.stiffness < 0.9) {
+    } else if (this.stiffness < 0.9) {
       render.type = 'spring';
     }
-
-    constraint.render = Common.extend(render, constraint.render);
-
-    return constraint;
-  };
+    return this;
+  }
 
   /**
    * Prepares for solving by constraint warming.
@@ -494,6 +496,12 @@ export class Constraint {
 */
 
 export class MouseConstraint {
+  public constraint: Constraint;
+  public type = 'mouseConstraint';
+  public mouse: Mouse;
+  public element: HTMLElement;
+  public body = null;
+  public collisionFilter = Body.defaultFilter;
 
   /**
    * Creates a new mouse constraint.
@@ -505,55 +513,42 @@ export class MouseConstraint {
    * @return {MouseConstraint} A new MouseConstraint
    */
 
-  MouseConstraint.create = function (engine, options) {
-    var mouse = (engine ? engine.mouse : null) || (options ? options.mouse : null);
+  public constructor(engine: Engine, options?: any) {
+    //var mouse = (engine ? engine.mouse : null) || (options ? options.mouse : null);
+    var mouse = engine.mouse;
 
-    if (!mouse) {
-      if (engine && engine.render && engine.render.canvas) {
-        mouse = Mouse.create(engine.render.canvas);
-      } else if (options && options.element) {
-        mouse = Mouse.create(options.element);
-      } else {
-        mouse = Mouse.create();
-        Common.warn('MouseConstraint.create: options.mouse was undefined, options.element was undefined, may not function as expected');
-      }
-    }
-
-    var constraint = Constraint.create({
+    // if (!mouse) {
+    //   if (engine && engine.render && engine.render.canvas) {
+    //     mouse = Mouse.create(engine.render.canvas);
+    //   } else if (options && options.element) {
+    //     mouse = Mouse.create(options.element);
+    //   } else {
+    //     mouse = Mouse.create();
+    //     Common.warn('MouseConstraint.create: options.mouse was undefined, options.element was undefined, may not function as expected');
+    //   }
+    // }
+    this.constraint = new Constraint({
       label: 'Mouse Constraint',
       pointA: mouse.position,
       pointB: { x: 0, y: 0 },
       length: 0.01,
       stiffness: 0.1,
       angularStiffness: 1,
-      render: {
-        strokeStyle: '#90EE90',
-        lineWidth: 3
-      }
+      strokeStyle: '#90EE90',
+      lineWidth: 3
     });
-
-    var defaults = {
-      type: 'mouseConstraint',
-      mouse: mouse,
-      element: null,
-      body: null,
-      constraint: constraint,
-      collisionFilter: {
-        category: 0x0001,
-        mask: 0xFFFFFFFF,
-        group: 0
-      }
-    };
-
-    var mouseConstraint = Common.extend(defaults, options);
+    this.mouse = mouse;
+    this.element = null;
+    this.body = null;
+    if (options !== undefined) {
+      Object.assign(this, options);
+    }
 
     Events.on(engine, 'beforeUpdate', function () {
       var allBodies = Composite.allBodies(engine.world);
       MouseConstraint.update(mouseConstraint, allBodies);
-      MouseConstraint._triggerEvents(mouseConstraint);
+      MouseConstraint.triggerEvents(this);
     });
-
-    return mouseConstraint;
   }
 
   /**
@@ -564,15 +559,15 @@ export class MouseConstraint {
    * @param {body[]} bodies
    */
 
-  MouseConstraint.update = function (mouseConstraint, bodies) {
-    var mouse = mouseConstraint.mouse,
-      constraint = mouseConstraint.constraint,
-      body = mouseConstraint.body;
+  public static update(mouseConstraint: MouseConstraint, bodies: Body[]) {
+    const mouse = mouseConstraint.mouse;
+    const constraint = mouseConstraint.constraint;
+    const body = mouseConstraint.body;
 
     if (mouse.button === 0) {
       if (!constraint.bodyB) {
         for (var i = 0; i < bodies.length; i++) {
-          body = bodies[i];
+          const body = bodies[i];
           if (Bounds.contains(body.bounds, mouse.position)
             && Detector.canCollide(body.collisionFilter, mouseConstraint.collisionFilter)) {
             for (var j = body.parts.length > 1 ? 1 : 0; j < body.parts.length; j++) {
@@ -602,7 +597,7 @@ export class MouseConstraint {
       if (body)
         Events.trigger(mouseConstraint, 'enddrag', { mouse: mouse, body: body });
     }
-  };
+  }
 
   /**
    * Triggers mouse constraint events.
@@ -610,9 +605,9 @@ export class MouseConstraint {
    * @private
    * @param {mouse} mouseConstraint
    */
-  MouseConstraint._triggerEvents = function (mouseConstraint) {
-    var mouse = mouseConstraint.mouse,
-      mouseEvents = mouse.sourceEvents;
+  private static triggerEvents(mouseConstraint: MouseConstraint) {
+    const mouse = mouseConstraint.mouse;
+    const mouseEvents = mouse.sourceEvents;
 
     if (mouseEvents.mousemove)
       Events.trigger(mouseConstraint, 'mousemove', { mouse: mouse });
@@ -625,111 +620,6 @@ export class MouseConstraint {
 
     // reset the mouse state ready for the next step
     Mouse.clearSourceEvents(mouse);
-  };
-
-  /*
-  *
-  *  Events Documentation
-  *
-  */
-
-  /**
-  * Fired when the mouse has moved (or a touch moves) during the last step
-  *
-  * @event mousemove
-  * @param {} event An event object
-  * @param {mouse} event.mouse The engine's mouse instance
-  * @param {} event.source The source object of the event
-  * @param {} event.name The name of the event
-  */
-
-  /**
-  * Fired when the mouse is down (or a touch has started) during the last step
-  *
-  * @event mousedown
-  * @param {} event An event object
-  * @param {mouse} event.mouse The engine's mouse instance
-  * @param {} event.source The source object of the event
-  * @param {} event.name The name of the event
-  */
-
-  /**
-  * Fired when the mouse is up (or a touch has ended) during the last step
-  *
-  * @event mouseup
-  * @param {} event An event object
-  * @param {mouse} event.mouse The engine's mouse instance
-  * @param {} event.source The source object of the event
-  * @param {} event.name The name of the event
-  */
-
-  /**
-  * Fired when the user starts dragging a body
-  *
-  * @event startdrag
-  * @param {} event An event object
-  * @param {mouse} event.mouse The engine's mouse instance
-  * @param {body} event.body The body being dragged
-  * @param {} event.source The source object of the event
-  * @param {} event.name The name of the event
-  */
-
-  /**
-  * Fired when the user ends dragging a body
-  *
-  * @event enddrag
-  * @param {} event An event object
-  * @param {mouse} event.mouse The engine's mouse instance
-  * @param {body} event.body The body that has stopped being dragged
-  * @param {} event.source The source object of the event
-  * @param {} event.name The name of the event
-  */
-
-  /*
-  *
-  *  Properties Documentation
-  *
-  */
-
-  /**
-   * A `String` denoting the type of object.
-   *
-   * @property type
-   * @type string
-   * @default "constraint"
-   * @readOnly
-   */
-
-  /**
-   * The `Mouse` instance in use. If not supplied in `MouseConstraint.create`, one will be created.
-   *
-   * @property mouse
-   * @type mouse
-   * @default mouse
-   */
-
-  /**
-   * The `Body` that is currently being moved by the user, or `null` if no body.
-   *
-   * @property body
-   * @type body
-   * @default null
-   */
-
-  /**
-   * The `Constraint` object that is used to move the body during interaction.
-   *
-   * @property constraint
-   * @type constraint
-   */
-
-  /**
-   * An `Object` that specifies the collision filter properties.
-   * The collision filter allows the user to define which types of body this mouse constraint can interact with.
-   * See `body.collisionFilter` for more information.
-   *
-   * @property collisionFilter
-   * @type object
-   */
+  }
 
 }

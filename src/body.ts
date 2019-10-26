@@ -1,6 +1,6 @@
 import { Common, Events } from './core';
 import { Vector, Vertex, Vertices, Bounds, Axes } from './geometry';
-import { Constraint } from './constraint';
+import { Constraint, MouseConstraint } from './constraint';
 
 const _inertiaScale = 4;
 const _nextCollidingGroupId = 1;
@@ -24,15 +24,30 @@ export class Impulse extends Vector {
 * @class Body
 */
 
+export type Filter = {
+  category: number;
+  mask: number;
+  group: number;
+}
+
+export type BodyState = {
+  position: Vector;
+  angle: number;
+  force: Vector;
+  torque: number;
+  positionImpulse: Vector;
+  isStatic: boolean;
+}
+
 export class Body {
   public id: number; //Common.nextId(),
   public type = 'body';
   public label = 'Body';
-  public parts: any[] = []; //
+  public parts: Body[] = []; //
   //plugin: { },
-  public angle = 0;
-  public vertices: Vertex[]; // Vertices.fromPath('L 0 0 L 40 0 L 40 40 L 0 40'),
   public position: Vector = new Vector(); //{ x: 0, y: 0 },
+  public angle = 0;
+  public vertices: Vertex[];
   public force: Vector = new Vector() // { x: 0, y: 0 },
   public torque = 0;
   public positionImpulse: Vector = new Vector() // { x: 0, y: 0 },
@@ -53,7 +68,7 @@ export class Body {
   public friction = 0.1;
   public frictionStatic = 0.5;
   public frictionAir = 0.01;
-  public collisionFilter = {
+  public collisionFilter: Filter = {
     category: 0x0001,
     mask: 0xFFFFFFFF,
     group: 0
@@ -75,20 +90,23 @@ export class Body {
   public bounds = Bounds.Null;
   public chamfer = null;
   public circleRadius = 0;
-  public positionPrev = null;
+  public positionPrev = new Vector();
   public anglePrev = 0;
   public parent: Body | null = null;
   public axes: Vector[] = [];
   public area = 0;
   public mass = 0;
   public inertia = 0;
-  public _original = null;
-  inverseInertia: number;
-  inverseMass: number;
+  public _original: any = null;
+  public inverseInertia: number = 0;
+  public inverseMass: number = 0;
 
   public constructor(options?: any) {
     options = options || {};
-
+    this.id = Common.nextId();
+    this.vertices = options['vertices'] || Vertices.fromPath('L 0 0 L 40 0 L 40 40 L 0 40');
+    this.bounds = options['bounds'] || Bounds.create(this.vertices);
+    this.positionPrev = options['positionPrev'] || Vector.clone(this.position);
     // // init required properties (order is important)
     // Body.set(body, {
     //   bounds: body.bounds || Bounds.create(body.vertices),
@@ -96,14 +114,16 @@ export class Body {
     //   anglePrev: body.anglePrev || body.angle,
     //   vertices: body.vertices,
     //   parts: body.parts || [body],
+    this.setParts([this]);
     //   isStatic: body.isStatic,
+    this.setStatic(options['isStatic'] === true)
     //   isSleeping: body.isSleeping,
     //   parent: body.parent || body
     // });
 
-    // Vertices.rotate(body.vertices, body.angle, body.position);
-    // Axes.rotate(body.axes, body.angle);
-    // Bounds.update(body.bounds, body.vertices, body.velocity);
+    Vertices.rotate(this.vertices, this.angle, this.position);
+    Axes.rotate(this.axes, this.angle);
+    Bounds.update(this.bounds, this.vertices, this.velocity);
 
     // // allow options to override the automatically calculated properties
     // Body.set(body, {
@@ -121,6 +141,8 @@ export class Body {
     // body.render.sprite.xOffset += -(body.bounds.min.x - body.position.x) / (body.bounds.max.x - body.bounds.min.x);
     // body.render.sprite.yOffset += -(body.bounds.min.y - body.position.y) / (body.bounds.max.y - body.bounds.min.y);
   }
+
+  public static None: Body = new Body();
 
   /**
  * Sets the body as static, including isStatic flag and setting mass and inertia to Infinity.
@@ -149,7 +171,6 @@ export class Body {
         part.friction = 1;
         part.mass = part.inertia = part.density = Infinity;
         part.inverseMass = part.inverseInertia = 0;
-
         part.positionPrev.x = part.position.x;
         part.positionPrev.y = part.position.y;
         part.anglePrev = part.angle;
@@ -177,6 +198,7 @@ export class Body {
  * @param {body} body
  * @param {number} mass
  */
+
   public setMass(mass: number) {
     var moment = this.inertia / (this.mass / 6);
     this.inertia = moment * (mass / 6);
@@ -193,10 +215,11 @@ export class Body {
    * @param {body} this
    * @param {number} density
    */
+
   public setDensity(density: number) {
     this.setMass(density * this.area);
     this.density = density;
-  };
+  }
 
   /**
    * Sets the moment of inertia (i.e. second moment of area) of the body. 
@@ -205,10 +228,11 @@ export class Body {
    * @param {body} this
    * @param {number} inertia
    */
+
   public setInertia(inertia: number) {
     this.inertia = inertia;
     this.inverseInertia = 1 / this.inertia;
-  };
+  }
 
   /**
    * Sets the body's vertices and updates body properties accordingly, including inertia, area and mass (with respect to `body.density`).
@@ -257,16 +281,15 @@ export class Body {
    * @param [this] parts
    * @param {bool} [autoHull=true]
    */
-  public setParts(parts: Body[], autoHull = true) {
-    var i;
 
+  public setParts(parts: Body[], autoHull = true) {
     // add all the parts, ensuring that the first part is always the parent body
     parts = parts.slice(0);
     this.parts.length = 0;
     this.parts.push(this);
     this.parent = this;
 
-    for (i = 0; i < parts.length; i++) {
+    for (var i = 0; i < parts.length; i++) {
       var part = parts[i];
       if (part !== this) {
         part.parent = this;
@@ -279,22 +302,19 @@ export class Body {
 
     // find the convex hull of all parts to set on the parent body
     if (autoHull) {
-      var vertices = [];
-      for (i = 0; i < parts.length; i++) {
+      var vertices: Vertex[] = [];
+      for (var i = 0; i < parts.length; i++) {
         vertices = vertices.concat(parts[i].vertices);
       }
-
       Vertices.clockwiseSort(vertices);
-
-      var hull = Vertices.hull(vertices),
-        hullCentre = Vertices.centre(hull);
-
+      const hull = Vertices.hull(vertices);
+      const hullCentre = Vertices.centre(hull);
       this.setVertices(hull);
       Vertices.translate(this.vertices, hullCentre);
     }
 
     // sum the properties of all compound parts of the parent body
-    var total = this._totalProperties();
+    var total = this.totalProperties();
 
     this.area = total.area;
     this.parent = this;
@@ -319,6 +339,7 @@ export class Body {
    * @param {vector} centre
    * @param {bool} relative
    */
+
   public setCentre(centre: Vector, relative?: boolean) {
     if (!relative) {
       this.positionPrev.x = centre.x - (this.position.x - this.positionPrev.x);
@@ -339,6 +360,7 @@ export class Body {
    * @param {body} this
    * @param {vector} position
    */
+
   public setPosition(position: Vector) {
     var delta = Vector.sub(position, this.position);
     this.positionPrev.x += delta.x;
@@ -351,7 +373,7 @@ export class Body {
       Vertices.translate(part.vertices, delta);
       Bounds.update(part.bounds, part.vertices, this.velocity);
     }
-  };
+  }
 
   /**
    * Sets the angle of the body instantly. Angular velocity, position, force etc. are unchanged.
@@ -359,6 +381,7 @@ export class Body {
    * @param {body} body
    * @param {number} angle
    */
+
   public setAngle(angle: number) {
     var delta = angle - this.angle;
     this.anglePrev += delta;
@@ -373,7 +396,7 @@ export class Body {
         Vector.rotateAbout(part.position, delta, this.position, part.position);
       }
     }
-  };
+  }
 
   /**
    * Sets the linear velocity of the body instantly. Position, angle, force etc. are unchanged. See also `Body.applyForce`.
@@ -381,13 +404,14 @@ export class Body {
    * @param {body} this
    * @param {vector} velocity
    */
-  public setVelocity(velocity) {
+
+  public setVelocity(velocity: Vector) {
     this.positionPrev.x = this.position.x - velocity.x;
     this.positionPrev.y = this.position.y - velocity.y;
     this.velocity.x = velocity.x;
     this.velocity.y = velocity.y;
     this.speed = Vector.magnitude(this.velocity);
-  };
+  }
 
   /**
    * Sets the angular velocity of the body instantly. Position, angle, force etc. are unchanged. See also `Body.applyForce`.
@@ -395,11 +419,11 @@ export class Body {
    * @param {body} this
    * @param {number} velocity
    */
-  public setAngularVelocity(velocity) {
+  public setAngularVelocity(velocity: number) {
     this.anglePrev = this.angle - velocity;
     this.angularVelocity = velocity;
     this.angularSpeed = Math.abs(this.angularVelocity);
-  };
+  }
 
   /**
    * Moves a body by a given vector relative to its current position, without imparting any velocity.
@@ -407,9 +431,10 @@ export class Body {
    * @param {body} this
    * @param {vector} translation
    */
+
   public translate(translation: Vector) {
     this.setPosition(Vector.add(this.position, translation));
-  };
+  }
 
   /**
    * Rotates a body by a given angle relative to its current angle, without imparting any angular velocity.
@@ -418,7 +443,7 @@ export class Body {
    * @param {number} rotation
    * @param {vector} [point]
    */
-  public rotate(rotation, point: Vector) {
+  public rotate(rotation: number, point: Vector) {
     if (!point) {
       this.setAngle(this.angle + rotation);
     } else {
@@ -443,7 +468,8 @@ export class Body {
    * @param {number} scaleY
    * @param {vector} [point]
    */
-  public scale(scaleX: number, scaleY: number, point: Vector) {
+
+  public scale(scaleX: number, scaleY: number, point?: Vector) {
     var totalArea = 0;
     var totalInertia = 0;
     point = point || this.position;
@@ -461,7 +487,7 @@ export class Body {
 
       // update inertia (requires vertices to be at origin)
       Vertices.translate(part.vertices, { x: -part.position.x, y: -part.position.y });
-      part.setInertia(part, _inertiaScale * Vertices.inertia(part.vertices, part.mass));
+      part.setInertia(_inertiaScale * Vertices.inertia(part.vertices, part.mass));
       Vertices.translate(part.vertices, { x: part.position.x, y: part.position.y });
 
       if (i > 0) {
@@ -553,7 +579,7 @@ export class Body {
 
       Bounds.update(part.bounds, part.vertices, this.velocity);
     }
-  };
+  }
 
   /**
    * Applies a force to a body from a given world-space position, including resulting torque.
@@ -562,12 +588,14 @@ export class Body {
    * @param {vector} position
    * @param {vector} force
    */
+
   public applyForce(position: Vector, force: Vector) {
     this.force.x += force.x;
     this.force.y += force.y;
-    var offset = { x: position.x - this.position.x, y: position.y - this.position.y };
-    this.torque += offset.x * force.y - offset.y * force.x;
-  };
+    const offsetX = position.x - this.position.x;
+    const offsetY = position.y - this.position.y;
+    this.torque += offsetX * force.y - offsetY * force.x;
+  }
 
   /**
    * Returns the sums of the properties of all compound parts of the parent body.
@@ -576,7 +604,8 @@ export class Body {
    * @param {body} body
    * @return {}
    */
-  private _totalProperties() {
+
+  private totalProperties() {
     // from equations at:
     // https://ecourses.ou.edu/cgi-bin/ebook.cgi?doc=&topic=st&chap_sec=07.2&page=theory
     // http://output.to/sideway/default.asp?qno=121100087
@@ -585,8 +614,8 @@ export class Body {
       mass: 0,
       area: 0,
       inertia: 0,
-      centre: { x: 0, y: 0 }
-    };
+      centre: new Vector();
+    }
 
     // sum the properties of all compound parts of the parent body
     for (var i = this.parts.length === 1 ? 0 : 1; i < this.parts.length; i++) {
@@ -602,7 +631,7 @@ export class Body {
     properties.centre = Vector.div(properties.centre, properties.mass);
 
     return properties;
-  };
+  }
 }
 
 /**
@@ -639,6 +668,7 @@ export class Composite {
     if (options) {
       Object.assign(this, options)
     }
+    this.id = Common.nextId();
   }
 
   /**
@@ -676,7 +706,7 @@ export class Composite {
    * @return {composite} The original composite with the objects added
    */
 
-  public add(object) {
+  public add(object: Body | Composite | Constraint | MouseConstraint) {
     var objects = [].concat(object);
 
     Events.trigger(this, 'beforeAdd', { object: object });
@@ -722,7 +752,8 @@ export class Composite {
    * @param {boolean} [deep=false]
    * @return {composite} The original composite with the objects removed
    */
-  public remove(object, deep = false) {
+
+  public remove(object: any, deep = false) {
     var objects = [].concat(object);
 
     Events.trigger(this, 'beforeRemove', { object: object });
@@ -762,7 +793,7 @@ export class Composite {
    * @return {composite} The original compositeA with the objects from compositeB added
    */
 
-  public addComposite(compositeB) {
+  public addComposite(compositeB: Composite) {
     this.composites.push(compositeB);
     compositeB.parent = this;
     this.setModified(true, true, false);
@@ -778,7 +809,7 @@ export class Composite {
    * @param {boolean} [deep=false]
    * @return {composite} The original compositeA with the composite removed
    */
-  public removeComposite(this, compositeB, deep = false) {
+  public removeComposite(compositeB: Composite, deep = false) {
     var position = Common.indexOf(this.composites, compositeB);
     if (position !== -1) {
       this.removeCompositeAt(position);
@@ -865,7 +896,7 @@ export class Composite {
    * @param {constraint} constraint
    * @return {composite} The original composite with the constraint added
    */
-  public addConstraint(constraint) {
+  public addConstraint(constraint: Constraint) {
     this.constraints.push(constraint);
     this.setModified(true, true, false);
     return this;
@@ -880,7 +911,7 @@ export class Composite {
    * @param {boolean} [deep=false]
    * @return {composite} The original composite with the constraint removed
    */
-  public removeConstraint(constraint, deep = false) {
+  public removeConstraint(constraint: Constraint, deep = false) {
     var position = Common.indexOf(this.constraints, constraint);
     if (position !== -1) {
       this.removeConstraintAt(position);
@@ -944,8 +975,8 @@ export class Composite {
    * @return {body[]} All the bodies
    */
 
-  public allBodies() {
-    var bodies = [].concat(this.bodies);
+  public allBodies(): Body[] {
+    var bodies: Body[] = [].concat(this.bodies);
     for (var i = 0; i < this.composites.length; i++) {
       bodies = bodies.concat(this.composites[i].allBodies());
     }
@@ -959,7 +990,7 @@ export class Composite {
    * @return {constraint[]} All the constraints
    */
 
-  public allConstraints() {
+  public allConstraints(): Constraint[] {
     var constraints = [].concat(this.constraints);
     for (var i = 0; i < this.composites.length; i++) {
       constraints = constraints.concat(this.composites[i].allConstraints());
@@ -1143,12 +1174,11 @@ export class Composite {
 
     return Bounds.create(vertices);
   }
-
 }
 
 export class World extends Composite {
-  public gravity;
-  public bounds;
+  public gravity: Vector;
+  public bounds: Bounds;
   public constructor() {
     super();
   }

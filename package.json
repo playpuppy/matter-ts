@@ -1,5 +1,5 @@
 {
-  "name": "puppy-transpiler",
+  "name": "matter-ts",
   "version": "0.1.1",
   "description": "",
   "main": "index.js",
@@ -9,7 +9,7 @@
   },
   "keywords": [],
   "author": "Kimio Kuramitsu",
-  "license": "ISC",
+  "license": "MIT License",
   "devDependencies": {
     "@types/jest": "^24.0.19",
     "@types/node": "^12.7.12",

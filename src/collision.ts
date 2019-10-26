@@ -1,5 +1,6 @@
 import { Vector, Contact, Vertex, Vertices, Bounds, Axes } from './geometry';
-import { Body, Impulse } from './body';
+import { Body, Filter, Impulse } from './body';
+import { Common, Engine } from './core';
 
 /**
 * The `Matter.Pair` module contains methods for creating and manipulating collision pairs.
@@ -85,7 +86,7 @@ export class Pair {
    * @param {number} timestamp
    */
 
-  update(collision: Collision, timestamp: number) {
+  public update(collision: Collision, timestamp: number) {
     this.collision = collision;
 
     if (collision.collided) {
@@ -125,6 +126,7 @@ export class Pair {
    * @param {bool} isActive
    * @param {number} timestamp
    */
+
   public setActive(isActive: boolean, timestamp: number) {
     if (isActive) {
       this.isActive = true;
@@ -146,7 +148,7 @@ export class Pair {
 const _pairMaxIdleLife = 1000;
 
 export class Pairs {
-  public table = {};
+  public table: { [key: string]: Pair; } = {};
   public list: Pair[] = [];
   public collisionStart: Pair[] = [];
   public collisionActive: Pair[] = [];
@@ -159,8 +161,10 @@ export class Pairs {
    * @return {pairs} A new pairs structure
    */
 
-  public constructor(options: any) {
-    Common.extend(this, options);
+  public constructor(options?: any) {
+    if (options !== undefined) {
+      Object.assign(this, options);
+    }
   }
 
   /**
@@ -295,6 +299,17 @@ export class Pairs {
 * @class SAT
 */
 
+export type Overlap = {
+  overlap: number;
+  axis: Vector;
+  axisNumber: number;
+}
+
+export type Projection = {
+  min: number;
+  max: number;
+}
+
 // TODO: true circles and curves
 
 class SAT {
@@ -308,17 +323,17 @@ class SAT {
    * @return {collision} collision
    */
 
-  public static collides(bodyA: Body, bodyB: Body, previousCollision: Collision) {
-    var overlapAB;
-    var overlapBA;
-    var minOverlap;
-    var collision: Collision;
+  public static collides(bodyA: Body, bodyB: Body, previousCollision?: Collision) {
+    // var overlapAB: Overlap;
+    // var overlapBA: Overlap;
+    // var minOverlap: Overlap;
+    // var collision: Collision;
     const canReusePrevCol = false;
 
     if (previousCollision) {
       // estimate total motion
-      const parentA = bodyA.parent;
-      const parentB = bodyB.parent;
+      const parentA = bodyA.parent as Body;
+      const parentB = bodyB.parent as Body;
       const motion = parentA.speed * parentA.speed + parentA.angularSpeed * parentA.angularSpeed
         + parentB.speed * parentB.speed + parentB.angularSpeed * parentB.angularSpeed;
 
@@ -327,7 +342,7 @@ class SAT {
       const canReusePrevCol = previousCollision && previousCollision.collided && motion < 0.2;
 
       // reuse collision object
-      collision = previousCollision;
+      var collision = previousCollision;
     } else {
       collision = { collided: false, bodyA: bodyA, bodyB: bodyB } as Collision;
     }
@@ -339,7 +354,7 @@ class SAT {
       const axisBodyB = axisBodyA === bodyA ? bodyB : bodyA;
       const axes = [axisBodyA.axes[previousCollision.axisNumber]];
 
-      minOverlap = SAT.overlapAxes(axisBodyA.vertices, axisBodyB.vertices, axes);
+      var minOverlap = SAT.overlapAxes(axisBodyA.vertices, axisBodyB.vertices, axes);
       collision.reused = true;
 
       if (minOverlap.overlap <= 0) {
@@ -349,14 +364,14 @@ class SAT {
     } else {
       // if we can't reuse a result, perform a full SAT test
 
-      overlapAB = SAT.overlapAxes(bodyA.vertices, bodyB.vertices, bodyA.axes);
+      const overlapAB = SAT.overlapAxes(bodyA.vertices, bodyB.vertices, bodyA.axes);
 
       if (overlapAB.overlap <= 0) {
         collision.collided = false;
         return collision;
       }
 
-      overlapBA = SAT.overlapAxes(bodyB.vertices, bodyA.vertices, bodyB.axes);
+      const overlapBA = SAT.overlapAxes(bodyB.vertices, bodyA.vertices, bodyB.axes);
 
       if (overlapBA.overlap <= 0) {
         collision.collided = false;
@@ -379,8 +394,8 @@ class SAT {
     collision.bodyB = bodyA.id < bodyB.id ? bodyB : bodyA;
     collision.collided = true;
     collision.depth = minOverlap.overlap;
-    collision.parentA = collision.bodyA.parent;
-    collision.parentB = collision.bodyB.parent;
+    collision.parentA = collision.bodyA.parent as Body;
+    collision.parentB = collision.bodyB.parent as Body;
 
     bodyA = collision.bodyA;
     bodyB = collision.bodyB;
@@ -428,9 +443,7 @@ class SAT {
 
     // account for the edge case of overlapping but no vertex containment
     if (supports.length < 1)
-      supports = [verticesB[0]];
-
-    collision.supports = supports;
+      collision.supports = [verticesB[0]];
 
     return collision;
   }
@@ -445,10 +458,10 @@ class SAT {
    * @return result
    */
 
-  private static overlapAxes(verticesA: Vertex[], verticesB: Vertex[], axes: Vector[]) {
-    var projectionA = Vector._temp[0];
-    var projectionB = Vector._temp[1];
-    var result = { overlap: Number.MAX_VALUE };
+  private static overlapAxes(verticesA: Vertex[], verticesB: Vertex[], axes: Vector[]): Overlap {
+    const projectionA = { min: 0, max: 0 } //Vector._temp[0];
+    const projectionB = { min: 0, max: 0 } //Vector._temp[1];
+    const result = { overlap: Number.MAX_VALUE } as Overlap;
 
     for (var i = 0; i < axes.length; i++) {
       const axis = axes[i];
@@ -460,7 +473,7 @@ class SAT {
 
       if (overlap <= 0) {
         result.overlap = overlap;
-        return result;
+        return result as Overlap;
       }
 
       if (overlap < result.overlap) {
@@ -469,7 +482,7 @@ class SAT {
         result.axisNumber = i;
       }
     }
-    return result;
+    return result as Overlap;
   }
 
   /**
@@ -481,8 +494,8 @@ class SAT {
    * @param {} axis
    */
   private static projectToAxis(projection: Projection, vertices: Vertex[], axis: Vector) {
-    var min = Vector.dot(vertices[0], axis),
-      max = min;
+    var min = Vector.dot(vertices[0], axis);
+    var max = min;
 
     for (var i = 1; i < vertices.length; i += 1) {
       var dot = Vector.dot(vertices[i], axis);
@@ -508,21 +521,20 @@ class SAT {
    */
 
   private static findSupports = function (bodyA: Body, bodyB: Body, normal: Vector): Vertex[] {
-    var nearestDistance = Number.MAX_VALUE,
-      vertexToBody = Vector._temp[0],
-      vertices = bodyB.vertices,
-      bodyAPosition = bodyA.position,
-      distance: number,
-      vertex: Vertex,
-      vertexA: Vertex,
-      vertexB: Vertex;
+    var nearestDistance = Number.MAX_VALUE;
+    const vertices = bodyB.vertices;
+    const bodyAPosition = bodyA.position;
+    const vertexToBody = Vector._temp[0];
+    var distance: number = 0;
+    var vertexA: Vertex = {} as Vertex;
+    var vertexB: Vertex;
 
     // find closest vertex on bodyB
     for (var i = 0; i < vertices.length; i++) {
-      const vertex = vertices[i];
+      var vertex = vertices[i];
       vertexToBody.x = vertex.x - bodyAPosition.x;
       vertexToBody.y = vertex.y - bodyAPosition.y;
-      distance = -Vector.dot(normal, vertexToBody);
+      var distance = -Vector.dot(normal, vertexToBody);
 
       if (distance < nearestDistance) {
         nearestDistance = distance;
@@ -557,11 +569,11 @@ class SAT {
 * @class Detector
 */
 
-type Filter = {
-  group: number;
-  mask: number;
-  category: number;
-}
+// type Filter = {
+//   group: number;
+//   mask: number;
+//   category: number;
+// }
 
 // TODO: speculative contacts
 
@@ -578,12 +590,13 @@ class Detector {
    * @param {engine} engine
    * @return {array} collisions
    */
+
   public static collisions(broadphasePairs: Pair[], engine: any) {
     var collisions = [];
     var pairsTable = engine.pairs.table;
 
     // @if DEBUG
-    var metrics = engine.metrics;
+    // var metrics = engine.metrics;
     // @endif
 
     for (var i = 0; i < broadphasePairs.length; i++) {
@@ -597,7 +610,7 @@ class Detector {
         continue;
 
       // @if DEBUG
-      metrics.midphaseTests += 1;
+      // metrics.midphaseTests += 1;
       // @endif
 
       // mid phase
@@ -624,17 +637,17 @@ class Detector {
               var collision = SAT.collides(partA, partB, previousCollision);
 
               // @if DEBUG
-              metrics.narrowphaseTests += 1;
+              //metrics.narrowphaseTests += 1;
               if (collision.reused)
-                metrics.narrowReuseCount += 1;
-              // @endif
-
-              if (collision.collided) {
-                collisions.push(collision);
-                // @if DEBUG
-                metrics.narrowDetections += 1;
+                //  metrics.narrowReuseCount += 1;
                 // @endif
-              }
+
+                if (collision.collided) {
+                  collisions.push(collision);
+                  // @if DEBUG
+                  // metrics.narrowDetections += 1;
+                  // @endif
+                }
             }
           }
         }
@@ -678,9 +691,9 @@ export class Grid {
 
   public controller = Grid;
   public detector = Detector.collisions;
-  public buckets = {};
-  public pairs = {};
-  public pairsList = [];
+  public buckets: { [key: string]: Body[]; } = {};
+  public pairs: { [key: string]: any[]; } = {}; // id: [body, body, 1]
+  public pairsList: Pair[] = [];
   public bucketWidth = 48;
   public bucketHeight = 48;
 
@@ -691,25 +704,11 @@ export class Grid {
    * @return {grid} A new grid
    */
 
-  public constructor(options: any) {
-    return Common.extend(this, options);
-  };
-
-  /**
-   * The width of a single grid bucket.
-   *
-   * @property bucketWidth
-   * @type number
-   * @default 48
-   */
-
-  /**
-   * The height of a single grid bucket.
-   *
-   * @property bucketHeight
-   * @type number
-   * @default 48
-   */
+  public constructor(options?: any) {
+    if (options !== undefined) {
+      Object.assign(this, options);
+    }
+  }
 
   /**
    * Updates the grid.
@@ -719,21 +718,19 @@ export class Grid {
    * @param {engine} engine
    * @param {boolean} forceUpdate
    */
-  Grid.update = function (grid, bodies, engine, forceUpdate) {
-    var i, col, row,
-      world = engine.world,
-      buckets = grid.buckets,
-      bucket,
-      bucketId,
-      gridChanged = false;
+
+  public static update(grid: Grid, bodies: Body[], engine: Engine, forceUpdate: boolean) {
+    const world = engine.world;
+    const buckets = grid.buckets;
+    var gridChanged = false;
 
     // @if DEBUG
-    var metrics = engine.metrics;
-    metrics.broadphaseTests = 0;
+    // var metrics = engine.metrics;
+    // metrics.broadphaseTests = 0;
     // @endif
 
-    for (i = 0; i < bodies.length; i++) {
-      var body = bodies[i];
+    for (var i = 0; i < bodies.length; i++) {
+      const body = bodies[i];
 
       if (body.isSleeping && !forceUpdate)
         continue;
@@ -743,52 +740,55 @@ export class Grid {
         || body.bounds.max.y < world.bounds.min.y || body.bounds.min.y > world.bounds.max.y)
         continue;
 
-      var newRegion = Grid._getRegion(grid, body);
+      var newRegion = Grid.getRegion(grid, body);
+      var bodyRegion = (body as any)['region'] as Region;
 
       // if the body has changed grid region
-      if (!body.region || newRegion.id !== body.region.id || forceUpdate) {
+      if (!bodyRegion || newRegion.id !== bodyRegion.id || forceUpdate) {
 
         // @if DEBUG
-        metrics.broadphaseTests += 1;
+        // metrics.broadphaseTests += 1;
         // @endif
 
-        if (!body.region || forceUpdate)
-          body.region = newRegion;
+        if (!bodyRegion || forceUpdate) {
+          (body as any)['region'] = newRegion;
+          bodyRegion = newRegion;
+        }
 
-        var union = Grid._regionUnion(newRegion, body.region);
+        var union = Grid.regionUnion(newRegion, bodyRegion);
 
         // update grid buckets affected by region change
         // iterate over the union of both regions
-        for (col = union.startCol; col <= union.endCol; col++) {
-          for (row = union.startRow; row <= union.endRow; row++) {
-            bucketId = Grid._getBucketId(col, row);
-            bucket = buckets[bucketId];
+        for (var col = union.startCol; col <= union.endCol; col++) {
+          for (var row = union.startRow; row <= union.endRow; row++) {
+            var bucketId = Grid.getBucketId(col, row);
+            var bucket = buckets[bucketId];
 
             var isInsideNewRegion = (col >= newRegion.startCol && col <= newRegion.endCol
               && row >= newRegion.startRow && row <= newRegion.endRow);
 
-            var isInsideOldRegion = (col >= body.region.startCol && col <= body.region.endCol
-              && row >= body.region.startRow && row <= body.region.endRow);
+            var isInsideOldRegion = (col >= bodyRegion.startCol && col <= bodyRegion.endCol
+              && row >= bodyRegion.startRow && row <= bodyRegion.endRow);
 
             // remove from old region buckets
             if (!isInsideNewRegion && isInsideOldRegion) {
               if (isInsideOldRegion) {
                 if (bucket)
-                  Grid._bucketRemoveBody(grid, bucket, body);
+                  Grid.bucketRemoveBody(grid, bucket, body);
               }
             }
 
             // add to new region buckets
-            if (body.region === newRegion || (isInsideNewRegion && !isInsideOldRegion) || forceUpdate) {
+            if (bodyRegion === newRegion || (isInsideNewRegion && !isInsideOldRegion) || forceUpdate) {
               if (!bucket)
-                bucket = Grid._createBucket(buckets, bucketId);
-              Grid._bucketAddBody(grid, bucket, body);
+                bucket = Grid.createBucket(buckets, bucketId);
+              Grid.bucketAddBody(grid, bucket, body);
             }
           }
         }
 
         // set the new region
-        body.region = newRegion;
+        (body as any)['region'] = newRegion;
 
         // flag changes so we can update pairs
         gridChanged = true;
@@ -797,19 +797,19 @@ export class Grid {
 
     // update pairs list only if pairs changed (i.e. a body changed region)
     if (gridChanged)
-      grid.pairsList = Grid._createActivePairsList(grid);
-  };
+      grid.pairsList = Grid.createActivePairsList(grid);
+  }
 
   /**
    * Clears the grid.
    * @method clear
    * @param {grid} grid
    */
-  Grid.clear = function (grid) {
+  public static clear(grid: Grid) {
     grid.buckets = {};
     grid.pairs = {};
     grid.pairsList = [];
-  };
+  }
 
   /**
    * Finds the union of two regions.
@@ -826,7 +826,7 @@ export class Grid {
     const startRow = Math.min(regionA.startRow, regionB.startRow);
     const endRow = Math.max(regionA.endRow, regionB.endRow);
     return Grid.createRegion(startCol, endCol, startRow, endRow);
-  };
+  }
 
   /**
    * Gets the region a given body falls in for a given grid.
@@ -837,15 +837,14 @@ export class Grid {
    * @return {} region
    */
 
-  private Grid._getRegion = function (grid, body) {
-    var bounds = body.bounds,
-      startCol = Math.floor(bounds.min.x / grid.bucketWidth),
-      endCol = Math.floor(bounds.max.x / grid.bucketWidth),
-      startRow = Math.floor(bounds.min.y / grid.bucketHeight),
-      endRow = Math.floor(bounds.max.y / grid.bucketHeight);
-
-    return Grid._createRegion(startCol, endCol, startRow, endRow);
-  };
+  private static getRegion(grid: Grid, body: Body) {
+    const bounds = body.bounds;
+    const startCol = Math.floor(bounds.min.x / grid.bucketWidth);
+    const endCol = Math.floor(bounds.max.x / grid.bucketWidth);
+    const startRow = Math.floor(bounds.min.y / grid.bucketHeight);
+    const endRow = Math.floor(bounds.max.y / grid.bucketHeight);
+    return Grid.createRegion(startCol, endCol, startRow, endRow);
+  }
 
   /**
    * Creates a region.
@@ -858,7 +857,7 @@ export class Grid {
    * @return {} region
    */
 
-  public static createRegion(startCol: number, endCol: number, startRow: number, endRow: number) {
+  private static createRegion(startCol: number, endCol: number, startRow: number, endRow: number) {
     return {
       id: startCol + ',' + endCol + ',' + startRow + ',' + endRow,
       startCol: startCol,
@@ -870,7 +869,7 @@ export class Grid {
 
   /**
    * Gets the bucket id at the given position.
-   * @method _getBucketId
+   * @method getBucketId
    * @private
    * @param {} column
    * @param {} row
@@ -883,14 +882,14 @@ export class Grid {
 
   /**
    * Creates a bucket.
-   * @method _createBucket
+   * @method createBucket
    * @private
    * @param {} buckets
    * @param {} bucketId
    * @return {} bucket
    */
 
-  private static createBucket(buckets, bucketId) {
+  private static createBucket(buckets: { [key: string]: Body[]; }, bucketId: string) {
     var bucket = buckets[bucketId] = [];
     return bucket;
   }
@@ -904,10 +903,10 @@ export class Grid {
    * @param {} body
    */
 
-  private static bucketAddBody(grid: Grid, bucket, body: Body) {
+  private static bucketAddBody(grid: Grid, bucket: Body[], body: Body) {
     // add new pairs
     for (var i = 0; i < bucket.length; i++) {
-      var bodyB = bucket[i];
+      const bodyB = bucket[i];
 
       if (body.id === bodyB.id || (body.isStatic && bodyB.isStatic))
         continue;
@@ -946,7 +945,7 @@ export class Grid {
       // keep track of the number of buckets the pair exists in
       // important for _createActivePairsList to work
       const bodyB = bucket[i];
-      const pairId = Pair.id(body, bodyB),
+      const pairId = Pair.id(body, bodyB);
       const pair = grid.pairs[pairId];
 
       if (pair)
@@ -962,7 +961,7 @@ export class Grid {
    * @return [] pairs
    */
 
-  private createActivePairsList(grid) {
+  private static createActivePairsList(grid: Grid) {
     var pairKeys,
       pair,
       pairs = [];
@@ -984,7 +983,7 @@ export class Grid {
     }
 
     return pairs;
-  };
+  }
 
 }
 
@@ -1041,11 +1040,11 @@ export class Query {
    */
 
   public static ray(bodies: Body[], startPoint: Vector, endPoint: Vector, rayWidth = 1e-100) {
-    const rayAngle = Vector.angle(startPoint, endPoint),
-    const rayLength = Vector.magnitude(Vector.sub(startPoint, endPoint)),
-    const rayX = (endPoint.x + startPoint.x) * 0.5,
-    const rayY = (endPoint.y + startPoint.y) * 0.5,
-    const ray = Bodies.rectangle(rayX, rayY, rayLength, rayWidth, { angle: rayAngle }),
+    const rayAngle = Vector.angle(startPoint, endPoint);
+    const rayLength = Vector.magnitude(Vector.sub(startPoint, endPoint));
+    const rayX = (endPoint.x + startPoint.x) * 0.5;
+    const rayY = (endPoint.y + startPoint.y) * 0.5;
+    const ray = Bodies.rectangle(rayX, rayY, rayLength, rayWidth, { angle: rayAngle });
     const collisions = Query.collides(ray, bodies);
 
     for (var i = 0; i < collisions.length; i += 1) {
@@ -1075,7 +1074,7 @@ export class Query {
     }
 
     return result;
-  };
+  }
 
   /**
    * Returns all bodies whose vertices contain the given point, from the given set of bodies.
@@ -1104,9 +1103,10 @@ export class Query {
     }
 
     return result;
-  };
+  }
 
-}) ();
+}
+
 /**
 * The `Matter.Resolver` module contains methods for resolving collision pairs.
 *
@@ -1263,7 +1263,7 @@ export class Resolver {
    * @method preSolveVelocity
    * @param {pair[]} pairs
    */
-  public static preSolveVelocity = function (pairs: Pair[]) {
+  public static preSolveVelocity(pairs: Pair[]) {
     // var i,
     //   j,
     //   pair,
@@ -1278,7 +1278,7 @@ export class Resolver {
     //   normalImpulse,
     //   tangentImpulse,
     //   offset,
-    const impulse = Vector._temp[0],
+    const impulse = Vector._temp[0];
     const tempA = Vector._temp[1];
 
     for (var i = 0; i < pairs.length; i++) {
@@ -1379,7 +1379,7 @@ export class Resolver {
 
         // raw impulses
         var normalImpulse = (1 + pair.restitution) * normalVelocity,
-          normalForce = Common.clamp(pair.separation + normalVelocity, 0, 1) * Resolver._frictionNormalMultiplier;
+          normalForce = Common.clamp(pair.separation + normalVelocity, 0, 1) * _frictionNormalMultiplier;
 
         // coulomb friction
         var tangentImpulse = tangentVelocity,
@@ -1402,7 +1402,7 @@ export class Resolver {
         tangentImpulse *= share;
 
         // handle high velocity and resting collisions separately
-        if (normalVelocity < 0 && normalVelocity * normalVelocity > Resolver._restingThresh * timeScaleSquared) {
+        if (normalVelocity < 0 && normalVelocity * normalVelocity > _restingThresh * timeScaleSquared) {
           // high normal velocity so clear cached contact normal impulse
           contact.normalImpulse = 0;
         } else {
@@ -1414,7 +1414,7 @@ export class Resolver {
         }
 
         // handle high velocity and resting collisions separately
-        if (tangentVelocity * tangentVelocity > Resolver._restingThreshTangent * timeScaleSquared) {
+        if (tangentVelocity * tangentVelocity > _restingThreshTangent * timeScaleSquared) {
           // high tangent velocity so clear cached contact tangent impulse
           contact.tangentImpulse = 0;
         } else {
@@ -1443,7 +1443,7 @@ export class Resolver {
         }
       }
     }
-  };
+  }
 
 }
 
