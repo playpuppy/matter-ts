@@ -244,11 +244,11 @@ export type Contact = {
 
 export class Vertex extends Vector {
   public index: number;
-  public body: Body;
+  public body?: Body;
   public isInternal: boolean;
-  public contact: any;
+  public contact: Contact;
 
-  constructor(x: number, y: number, index: number, body: Body) {
+  constructor(x: number, y: number, index: number, body?: Body) {
     super(x, y);
     this.index = index;
     this.body = body;
@@ -280,7 +280,7 @@ export class Vertices {
    * @param {body} body
    */
 
-  public static create(points: Vector[], body: Body) {
+  public static create(points: Vector[], body?: Body) {
     var vertices = [];
 
     for (var i = 0; i < points.length; i++) {
@@ -301,15 +301,24 @@ export class Vertices {
    * @return {vertices} vertices
    */
 
-  public static fromPath(path: string, body: Body) {
-    const pathPattern = /L?\s*([-\d.e]+)[\s,]*([-\d.e]+)*/ig;
-    const points: Vector[] = [];
-
-    path.replace(pathPattern, function (match, x, y) {
-      points.push(new Vector(parseFloat(x), parseFloat(y)));
-    });
-    return Vertices.create(points, body);
-  };
+  public static fromPath(path: number[], body?: Body) {
+    // if (typeof path === 'string') {
+    //   const points: Vector[] = [];
+    //   const pathPattern = /L?\s*([-\d.e]+)[\s,]*([-\d.e]+)*/ig;
+    //   path.replace(pathPattern, function (match, x, y) {
+    //     points.push(new Vector(parseFloat(x), parseFloat(y)));
+    //   });
+    //   return Vertices.create(points, body);
+    // }
+    // else {
+    var vertices = [];
+    for (let i = 0; i < path.length; i += 2) {
+      const vertex = new Vertex(path[i], path[i + 1], i / 2, body);
+      vertices.push(vertex);
+    }
+    return vertices;
+    // }
+  }
 
   /**
    * Returns the centre (centroid) of the set of vertices.
@@ -687,7 +696,7 @@ export class Bounds {
    * @return {bounds} A new bounds object
    */
 
-  public static create(vertices?: Vertex[]) {
+  public static create(vertices?: Vector[]) {
     var bounds = new Bounds(0, 0, 0, 0);
     if (vertices) {
       Bounds.update(bounds, vertices);
@@ -703,7 +712,7 @@ export class Bounds {
    * @param {vector} velocity
    */
 
-  public static update(bounds: Bounds, vertices: Vertex[], velocity?: Vector) {
+  public static update(bounds: Bounds, vertices: Vector[], velocity?: Vector) {
     bounds.min.x = Infinity;
     bounds.max.x = -Infinity;
     bounds.min.y = Infinity;

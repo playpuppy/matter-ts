@@ -1,4 +1,4 @@
-import { Common, Events } from './core';
+import { Common, Events, Mouse } from './core';
 import { Vector, Vertex, Vertices, Bounds, Axes } from './geometry';
 import { Constraint, MouseConstraint } from './constraint';
 
@@ -75,17 +75,26 @@ export class Body {
   };
   public slop = 0.05;
   public timeScale = 1;
-  public render = {
-    visible: true,
-    opacity: 1,
-    sprite: {
-      xScale: 1,
-      yScale: 1,
-      xOffset: 0,
-      yOffset: 0
-    },
-    lineWidth: 0
-  };
+  // public render = {
+  //   visible: true,
+  //   opacity: 1,
+  //   sprite: {
+  //     xScale: 1,
+  //     yScale: 1,
+  //     xOffset: 0,
+  //     yOffset: 0
+  //   },
+  //   lineWidth: 0
+  // };
+  public visible = true;
+  public opacity = 1;
+  public xScale = 1;
+  public yScale = 1;
+  public xOffset = 0;
+  public yOffset = 0;
+  public fillStyle = 'ffffff';
+  public strokeStyle = 'fffff';
+  public lineWidth = 0;
   public events = [];
   public bounds = Bounds.Null;
   public chamfer = null;
@@ -104,7 +113,7 @@ export class Body {
   public constructor(options?: any) {
     options = options || {};
     this.id = Common.nextId();
-    this.vertices = options['vertices'] || Vertices.fromPath('L 0 0 L 40 0 L 40 40 L 0 40');
+    this.vertices = options['vertices'] || Vertices.fromPath([0, 0, 40, 0, 40, 40, 0, 40]);
     this.bounds = options['bounds'] || Bounds.create(this.vertices);
     this.positionPrev = options['positionPrev'] || Vector.clone(this.position);
     // // init required properties (order is important)
@@ -443,7 +452,7 @@ export class Body {
    * @param {number} rotation
    * @param {vector} [point]
    */
-  public rotate(rotation: number, point: Vector) {
+  public rotate(rotation: number, point?: Vector) {
     if (!point) {
       this.setAngle(this.angle + rotation);
     } else {
@@ -452,10 +461,10 @@ export class Body {
         dx = this.position.x - point.x,
         dy = this.position.y - point.y;
 
-      this.setPosition({
-        x: point.x + (dx * cos - dy * sin),
-        y: point.y + (dx * sin + dy * cos)
-      });
+      this.setPosition(new Vector(
+        point.x + (dx * cos - dy * sin),
+        point.y + (dx * sin + dy * cos)
+      ));
       this.setAngle(this.angle + rotation);
     }
   }
@@ -519,7 +528,7 @@ export class Body {
         this.circleRadius *= scaleX;
       } else {
         // body is no longer a circle
-        this.circleRadius = null;
+        this.circleRadius = undefined;
       }
     }
   }
@@ -614,7 +623,7 @@ export class Body {
       mass: 0,
       area: 0,
       inertia: 0,
-      centre: new Vector();
+      centre: new Vector()
     }
 
     // sum the properties of all compound parts of the parent body
@@ -648,7 +657,7 @@ export class Body {
 export class Composite {
   public id: number;
   public type = 'composite';
-  public parent = null;
+  public parent: Composite;
   public isModified = false;
   public bodies: Body[] = [];
   public constraints: Constraint[] = [];
@@ -669,6 +678,7 @@ export class Composite {
       Object.assign(this, options)
     }
     this.id = Common.nextId();
+    this.parent = this; // null 
   }
 
   /**
@@ -706,39 +716,26 @@ export class Composite {
    * @return {composite} The original composite with the objects added
    */
 
-  public add(object: Body | Composite | Constraint | MouseConstraint) {
-    var objects = [].concat(object);
+  public add(object: any) {
+    var objects: any[] = [].concat(object);
 
     Events.trigger(this, 'beforeAdd', { object: object });
-
     for (var i = 0; i < objects.length; i++) {
       var obj = objects[i];
-
-      switch (obj.type) {
-
-        case 'body':
-          // skip adding compound parts
-          if (obj.parent !== obj) {
-            Common.warn('Composite.add: skipped adding a compound body part (you must add its parent instead)');
-            break;
-          }
-
-          this.addBody(obj);
-          break;
-        case 'constraint':
-          this.addConstraint(obj);
-          break;
-        case 'composite':
-          this.addComposite(obj);
-          break;
-        case 'mouseConstraint':
-          this.addConstraint(obj.constraint);
-          break;
+      if (obj instanceof Body) {
+        this.addBody(obj);
+      }
+      else if (obj instanceof Constraint) {
+        this.addConstraint(obj);
+      }
+      else if (obj instanceof Composite) {
+        this.addComposite(obj);
+      }
+      else if (obj instanceof MouseConstraint) {
+        this.addConstraint(obj.constraint);
       }
     }
-
     Events.trigger(this, 'afterAdd', { object: object });
-
     return this;
   }
 
@@ -754,35 +751,27 @@ export class Composite {
    */
 
   public remove(object: any, deep = false) {
-    var objects = [].concat(object);
+    var objects: any[] = [].concat(object);
 
     Events.trigger(this, 'beforeRemove', { object: object });
-
     for (var i = 0; i < objects.length; i++) {
       var obj = objects[i];
-
-      switch (obj.type) {
-
-        case 'body':
-          this.removeBody(obj, deep);
-          break;
-        case 'constraint':
-          this.removeConstraint(obj, deep);
-          break;
-        case 'composite':
-          this.removeComposite(obj, deep);
-          break;
-        case 'mouseConstraint':
-          this.removeConstraint(obj.constraint);
-          break;
-
+      if (obj instanceof Body) {
+        this.removeBody(obj);
+      }
+      else if (obj instanceof Constraint) {
+        this.removeConstraint(obj);
+      }
+      else if (obj instanceof Composite) {
+        this.removeComposite(obj);
+      }
+      else if (obj instanceof MouseConstraint) {
+        this.removeConstraint(obj.constraint);
       }
     }
-
     Events.trigger(this, 'afterRemove', { object: object });
-
     return this;
-  };
+  }
 
   /**
    * Adds a composite to the given composite.
@@ -976,7 +965,7 @@ export class Composite {
    */
 
   public allBodies(): Body[] {
-    var bodies: Body[] = [].concat(this.bodies);
+    var bodies: Body[] = ([] as Body[]).concat(this.bodies);
     for (var i = 0; i < this.composites.length; i++) {
       bodies = bodies.concat(this.composites[i].allBodies());
     }
@@ -991,7 +980,7 @@ export class Composite {
    */
 
   public allConstraints(): Constraint[] {
-    var constraints = [].concat(this.constraints);
+    var constraints = ([] as Constraint[]).concat(this.constraints);
     for (var i = 0; i < this.composites.length; i++) {
       constraints = constraints.concat(this.composites[i].allConstraints());
     }
@@ -1006,46 +995,46 @@ export class Composite {
    */
 
   public allComposites(): Composite[] {
-    var composites = [].concat(this.composites);
+    var composites = ([] as Composite[]).concat(this.composites);
     for (var i = 0; i < this.composites.length; i++) {
       composites = composites.concat(this.composites[i].allComposites());
     }
     return composites;
   }
 
-  /**
-   * Searches the composite recursively for an object matching the type and id supplied, null if not found.
-   * @method get
-   * @param {composite} composite
-   * @param {number} id
-   * @param {string} type
-   * @return {object} The requested object, if found
-   */
-  public get(id: number, type: string) {
-    var objects,
-      object;
+  // /**
+  //  * Searches the composite recursively for an object matching the type and id supplied, null if not found.
+  //  * @method get
+  //  * @param {composite} composite
+  //  * @param {number} id
+  //  * @param {string} type
+  //  * @return {object} The requested object, if found
+  //  */
+  // public get(id: number, type: string) {
+  //   var objects,
+  //     object;
 
-    switch (type) {
-      case 'body':
-        objects = this.allBodies();
-        break;
-      case 'constraint':
-        objects = this.allConstraints();
-        break;
-      case 'composite':
-        objects = this.allComposites().concat(this);
-        break;
-    }
+  //   switch (type) {
+  //     case 'body':
+  //       objects = this.allBodies();
+  //       break;
+  //     case 'constraint':
+  //       objects = this.allConstraints();
+  //       break;
+  //     case 'composite':
+  //       objects = this.allComposites().concat(this);
+  //       break;
+  //   }
 
-    if (!objects)
-      return null;
+  //   if (!objects)
+  //     return null;
 
-    object = objects.filter(function (object) {
-      return object.id.toString() === id.toString();
-    });
+  //   object = objects.filter(function (object) {
+  //     return object.id.toString() === id.toString();
+  //   });
 
-    return object.length === 0 ? null : object[0];
-  };
+  //   return object.length === 0 ? null : object[0];
+  // };
 
   /**
    * Moves the given object(s) from compositeA to compositeB (equal to a remove followed by an add).
@@ -1068,7 +1057,7 @@ export class Composite {
    * @return {composite} Returns composite
    */
   public rebase() {
-    const objects = this.allBodies()
+    const objects: any[] = this.allBodies()
       .concat(this.allConstraints())
       .concat(this.allComposites());
 
@@ -1087,6 +1076,7 @@ export class Composite {
    * @param {vector} translation
    * @param {bool} [recursive=true]
    */
+
   public translate(translation: Vector, recursive = true) {
     const bodies = recursive ? this.allBodies() : this.bodies;
 
@@ -1096,7 +1086,7 @@ export class Composite {
 
     this.setModified(true, true, false);
     return this;
-  };
+  }
 
   /**
    * Rotates all children in the composite by a given angle about the given point, without imparting any angular velocity.
@@ -1106,6 +1096,7 @@ export class Composite {
    * @param {vector} point
    * @param {bool} [recursive=true]
    */
+
   public rotate(rotation: number, point: Vector, recursive = true) {
     const cos = Math.cos(rotation);
     const sin = Math.sin(rotation);
@@ -1135,6 +1126,7 @@ export class Composite {
    * @param {vector} point
    * @param {bool} [recursive=true]
    */
+
   public scale(scaleX: number, scaleY: number, point: Vector, recursive = true) {
     const bodies = recursive ? this.allBodies() : this.bodies;
 
@@ -1150,11 +1142,9 @@ export class Composite {
 
       body.scale(scaleX, scaleY);
     }
-
     this.setModified(true, true, false);
-
     return this;
-  };
+  }
 
   /**
    * Returns the union of the bounds of all of the composite's bodies.
@@ -1163,9 +1153,9 @@ export class Composite {
    * @returns {bounds} The composite bounds.
    */
 
-  public bounds() {
+  public mkbounds() {
     const bodies = this.allBodies();
-    const vertices: Vertex[] = [];
+    const vertices: Vector[] = [];
 
     for (var i = 0; i < bodies.length; i += 1) {
       var body = bodies[i];
@@ -1177,8 +1167,8 @@ export class Composite {
 }
 
 export class World extends Composite {
-  public gravity: Vector;
-  public bounds: Bounds;
+  public gravity: Vector = new Vector(0, 0);
+  public bounds: Bounds = Bounds.Null;
   public constructor() {
     super();
   }

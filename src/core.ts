@@ -655,13 +655,15 @@ export class Engine {
       timestamp: 0,
       timeScale: 1
     };
-    //   broadphase: {
-    //   controller: Grid
-    // }
+    var broadphase = {
+      controller: Grid
+    };
     this.world = new World();
+    this.pairs = Pairs.create();
+    this.broadphase = broadphase.controller.create(broadphase);
+
     // engine.world = options.world || World.create(engine.world);
     // engine.pairs = Pairs.create();
-    // engine.broadphase = engine.broadphase.controller.create(engine.broadphase);
     // engine.metrics = engine.metrics || { extended: false };
   }
 

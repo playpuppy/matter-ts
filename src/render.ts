@@ -1,6 +1,84 @@
-import { Common, Events, Mouse } from './core';
+import { Common, Events, Mouse, Engine } from './core';
 import { Vector, Vertex, Vertices, Bounds, Axes } from './geometry';
+import { Body, Composite, World } from './body';
 import { Constraint } from './constraint';
+
+/**
+ * Description
+ * @method _createCanvas
+ * @private
+ * @param {} width
+ * @param {} height
+ * @return canvas
+ */
+
+const createCanvas = (width: number, height: number) => {
+  var canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  canvas.oncontextmenu = () => false;
+  canvas.onselectstart = () => false;
+  return canvas;
+};
+
+/**
+ * Gets the pixel ratio of the canvas.
+ * @method _getPixelRatio
+ * @private
+ * @param {HTMLElement} canvas
+ * @return {Number} pixel ratio
+ */
+
+const _getPixelRatio = (canvas: HTMLCanvasElement) => {
+  const context = canvas.getContext('2d') as any;
+  const devicePixelRatio = window.devicePixelRatio || 1;
+  const backingStorePixelRatio = context.webkitBackingStorePixelRatio || context.mozBackingStorePixelRatio
+    || context.msBackingStorePixelRatio || context.oBackingStorePixelRatio
+    || context.backingStorePixelRatio || 1;
+  return devicePixelRatio / backingStorePixelRatio;
+};
+
+/**
+ * Gets the requested texture (an Image) via its path
+ * @method _getTexture
+ * @private
+ * @param {render} render
+ * @param {string} imagePath
+ * @return {Image} texture
+ */
+
+const textures: any = {
+
+};
+
+const _getTexture = (imagePath: string) => {
+  const image = textures[imagePath];
+  if (image) {
+    return image;
+  }
+  const image2 = textures[imagePath] = new Image();
+  image2.src = imagePath;
+  return image2;
+};
+
+/**
+ * Applies the background to the canvas using CSS.
+ * @method applyBackground
+ * @private
+ * @param {render} render
+ * @param {string} background
+ */
+
+var _applyBackground = function (render: Render, background) {
+  var cssBackground = background;
+
+  if (/(jpg|gif|png)$/.test(background))
+    cssBackground = 'url(' + background + ')';
+
+  render.canvas.style.background = cssBackground;
+  render.canvas.style.backgroundSize = "contain";
+  render.currentBackground = background;
+};
 
 /**
 * The `Matter.Render` module is a simple HTML5 canvas based renderer for visualising instances of `Matter.Engine`.
@@ -11,25 +89,25 @@ import { Constraint } from './constraint';
 */
 
 
-var _requestAnimationFrame,
-  _cancelAnimationFrame;
+const _requestAnimationFrame = window.requestAnimationFrame;
+const _cancelAnimationFrame = window.cancelAnimationFrame;
 
-if (typeof window !== 'undefined') {
-  _requestAnimationFrame = window.requestAnimationFrame || window.webkitRequestAnimationFrame
-    || window.mozRequestAnimationFrame || window.msRequestAnimationFrame
-    || function (callback) { window.setTimeout(function () { callback(Common.now()); }, 1000 / 60); };
+// if (typeof window !== 'undefined') {
+//   _requestAnimationFrame = window.requestAnimationFrame || window.webkitRequestAnimationFrame
+//     || window.mozRequestAnimationFrame || window.msRequestAnimationFrame
+//     || function (callback) { window.setTimeout(function () { callback(Common.now()); }, 1000 / 60); };
 
-  _cancelAnimationFrame = window.cancelAnimationFrame || window.mozCancelAnimationFrame
-    || window.webkitCancelAnimationFrame || window.msCancelAnimationFrame;
-}
+//   _cancelAnimationFrame = window.cancelAnimationFrame || window.mozCancelAnimationFrame
+//     || window.webkitCancelAnimationFrame || window.msCancelAnimationFrame;
+// }
 
 export class Render {
-  public controller;
-  public engine: null;
+  public controller = null;
+  public engine: Engine;
   public element: HTMLElement;
-  public canvas: HTMLElement;
+  public canvas: HTMLCanvasElement;
   public mouse: Mouse;
-  public frameRequestId: null,
+  public frameRequestId = -1;
   public options = {
     width: 800,
     height: 600,
@@ -113,8 +191,7 @@ export class Render {
     this.mouse = options.mouse;
     this.engine = options.engine;
     this.canvas = this.canvas || _createCanvas(this.options.width, this.options.height);
-    this.context = this.canvas.getContext('2d');
-    this.textures = {};
+    this.context = this.canvas.getContext('2d')!;
 
     this.bounds = this.bounds || {
       min: {
@@ -131,7 +208,7 @@ export class Render {
       this.setPixelRatio(this.options.pixelRatio);
     }
 
-    if (Common.isElement(this.element)) {
+    if (Object.isElement(this.element)) {
       this.element.appendChild(this.canvas);
     } else if (!this.canvas.parentNode) {
       Common.log('Render.create: options.element was undefined, render.canvas was created but not appended', 'warn');
@@ -146,12 +223,13 @@ export class Render {
    * @param {render} this
    */
 
-  // public run(this) {
-  //   (function loop(time) {
-  //     this.frameRequestId = _requestAnimationFrame(loop);
-  //     this.world();
-  //   })();
-  // };
+  public run() {
+    const loop = (time: number) => {
+      this.frameRequestId = _requestAnimationFrame(loop);
+      this.world();
+    };
+    loop(1);//
+  }
 
   /**
    * Ends execution of `Render.run` on the given `render`, by canceling the animation frame request event loop.
@@ -170,7 +248,7 @@ export class Render {
    * @param {number} pixelRatio
    */
 
-  private setPixelRatio(pixelRatio) {
+  private setPixelRatio(pixelRatio: number) {
     var options = this.options;
     var canvas = this.canvas;
 
@@ -200,9 +278,9 @@ export class Render {
    * @param {bool} [center=true]
    */
 
-  public lookAt(objects, padding, center) {
+  public lookAt(objects: any[], padding?: Vector, center = true) {
     center = typeof center !== 'undefined' ? center : true;
-    objects = Common.isArray(objects) ? objects : [objects];
+    objects = Array.isArray(objects) ? objects : [objects];
     padding = padding || {
       x: 0,
       y: 0
@@ -321,17 +399,16 @@ export class Render {
    */
 
   private world() {
-    var engine = this.engine,
-      world = engine.world,
-      canvas = this.canvas,
-      context = this.context,
-      options = this.options,
-      allBodies = world.allBodies(world),
-      allConstraints = world.allConstraints(world),
-      background = options.wireframes ? options.wireframeBackground : options.background,
-      bodies = [],
-      constraints = [],
-      i;
+    const engine = this.engine;
+    const world = engine.world;
+    const canvas = this.canvas;
+    const context = this.context;
+    const options = this.options;
+    const allBodies = world.allBodies();
+    const allConstraints = world.allConstraints();
+    const background = options.wireframes ? options.wireframeBackground : options.background;
+    const bodies = [];
+    const constraints = [];
 
     var event = {
       timestamp: engine.timing.timestamp
@@ -352,22 +429,22 @@ export class Render {
     // handle bounds
     if (options.hasBounds) {
       // filter out bodies that are not in view
-      for (i = 0; i < allBodies.length; i++) {
+      for (var i = 0; i < allBodies.length; i++) {
         var body = allBodies[i];
         if (Bounds.overlaps(body.bounds, this.bounds))
           bodies.push(body);
       }
 
       // filter out constraints that are not in view
-      for (i = 0; i < allConstraints.length; i++) {
+      for (var i = 0; i < allConstraints.length; i++) {
         var constraint = allConstraints[i],
           bodyA = constraint.bodyA,
           bodyB = constraint.bodyB,
           pointAWorld = constraint.pointA,
           pointBWorld = constraint.pointB;
 
-        if (bodyA) pointAWorld = Vector.add(bodyA.position, constraint.pointA);
-        if (bodyB) pointBWorld = Vector.add(bodyB.position, constraint.pointB);
+        if (bodyA) pointAWorld = Vector.add(bodyA.position, constraint.pointA!);
+        if (bodyB) pointBWorld = Vector.add(bodyB.position, constraint.pointB!);
 
         if (!pointAWorld || !pointBWorld)
           continue;
@@ -458,7 +535,7 @@ export class Render {
    * @param {render} this
    * @param {RenderingContext} context
    */
-  private debug(context) {
+  private debug(context: CanvasRenderingContext2D) {
     var c = context,
       engine = this.engine,
       world = engine.world,
@@ -525,13 +602,13 @@ export class Render {
    * @param {RenderingContext} context
    */
 
-  private static constraints(constraints: Constraint[], context) {
+  private static constraints(constraints: Constraint[], context: CanvasRenderingContext2D) {
     var c = context;
 
     for (var i = 0; i < constraints.length; i++) {
       var constraint = constraints[i];
 
-      if (!constraint.render.visible || !constraint.pointA || !constraint.pointB)
+      if (!constraint.visible || !constraint.pointA || !constraint.pointB)
         continue;
 
       var bodyA = constraint.bodyA,
@@ -545,7 +622,7 @@ export class Render {
         start = constraint.pointA;
       }
 
-      if (constraint.render.type === 'pin') {
+      if (constraint.renderType === 'pin') {
         c.beginPath();
         c.arc(start.x, start.y, 3, 0, 2 * Math.PI);
         c.closePath();
@@ -559,7 +636,7 @@ export class Render {
         c.beginPath();
         c.moveTo(start.x, start.y);
 
-        if (constraint.render.type === 'spring') {
+        if (constraint.renderType === 'spring') {
           var delta = Vector.sub(end, start),
             normal = Vector.perp(Vector.normalise(delta)),
             coils = Math.ceil(Common.clamp(constraint.length / 5, 12, 20)),
@@ -578,14 +655,14 @@ export class Render {
         c.lineTo(end.x, end.y);
       }
 
-      if (constraint.render.lineWidth) {
-        c.lineWidth = constraint.render.lineWidth;
-        c.strokeStyle = constraint.render.strokeStyle;
+      if (constraint.lineWidth) {
+        c.lineWidth = constraint.lineWidth;
+        c.strokeStyle = constraint.strokeStyle;
         c.stroke();
       }
 
-      if (constraint.render.anchors) {
-        c.fillStyle = constraint.render.strokeStyle;
+      if (constraint.anchors) {
+        c.fillStyle = constraint.strokeStyle;
         c.beginPath();
         c.arc(start.x, start.y, 3, 0, 2 * Math.PI);
         c.arc(end.x, end.y, 3, 0, 2 * Math.PI);
@@ -604,14 +681,14 @@ export class Render {
    * @param {RenderingContext} context
    */
 
-  private bodyShadows(bodies: Body[], context) {
+  private bodyShadows(bodies: Body[], context: CanvasRenderingContext2D) {
     var c = context,
       engine = this.engine;
 
     for (var i = 0; i < bodies.length; i++) {
       var body = bodies[i];
 
-      if (!body.render.visible)
+      if (!body.visible)
         continue;
 
       if (body.circleRadius) {
@@ -654,7 +731,7 @@ export class Render {
    * @param {RenderingContext} context
    */
 
-  private bodies(bodies: Body[], context) {
+  private bodies(bodies: Body[], context: CanvasRenderingContext2D) {
     var c = context,
       engine = this.engine,
       options = this.options,
@@ -667,26 +744,26 @@ export class Render {
     for (i = 0; i < bodies.length; i++) {
       body = bodies[i];
 
-      if (!body.render.visible)
+      if (!body.visible)
         continue;
 
       // handle compound parts
       for (k = body.parts.length > 1 ? 1 : 0; k < body.parts.length; k++) {
         part = body.parts[k];
 
-        if (!part.render.visible)
+        if (!part.visible)
           continue;
 
         if (options.showSleeping && body.isSleeping) {
-          c.globalAlpha = 0.5 * part.render.opacity;
-        } else if (part.render.opacity !== 1) {
-          c.globalAlpha = part.render.opacity;
+          c.globalAlpha = 0.5 * part.opacity;
+        } else if (part.opacity !== 1) {
+          c.globalAlpha = part.opacity;
         }
 
-        if (part.render.sprite && part.render.sprite.texture && !options.wireframes) {
+        if (part.sprite && part.sprite.texture && !options.wireframes) {
           // part sprite
-          var sprite = part.render.sprite,
-            texture = _getTexture(this, sprite.texture);
+          var sprite = part.sprite,
+            texture = _getTexture(sprite.texture);
 
           c.translate(part.position.x, part.position.y);
           c.rotate(part.angle);
@@ -728,11 +805,11 @@ export class Render {
           }
 
           if (!options.wireframes) {
-            c.fillStyle = part.render.fillStyle;
+            c.fillStyle = part.fillStyle;
 
-            if (part.render.lineWidth) {
-              c.lineWidth = part.render.lineWidth;
-              c.strokeStyle = part.render.strokeStyle;
+            if (part.lineWidth) {
+              c.lineWidth = part.lineWidth;
+              c.strokeStyle = part.strokeStyle;
               c.stroke();
             }
 
@@ -758,7 +835,7 @@ export class Render {
    * @param {RenderingContext} context
    */
 
-  private bodyWireframes(bodies, context) {
+  private bodyWireframes(bodies: Body[], context: CanvasRenderingContext2D) {
     var c = context,
       showInternalEdges = this.options.showInternalEdges,
       body,
@@ -773,7 +850,7 @@ export class Render {
     for (i = 0; i < bodies.length; i++) {
       body = bodies[i];
 
-      if (!body.render.visible)
+      if (!body.visible)
         continue;
 
       // handle compound parts
@@ -812,7 +889,7 @@ export class Render {
    * @param {RenderingContext} context
    */
 
-  private bodyConvexHulls(bodies, context) {
+  private bodyConvexHulls(bodies: Body[], context: CanvasRenderingContext2D) {
     var c = context,
       body,
       part,
@@ -826,7 +903,7 @@ export class Render {
     for (i = 0; i < bodies.length; i++) {
       body = bodies[i];
 
-      if (!body.render.visible || body.parts.length === 1)
+      if (!body.visible || body.parts.length === 1)
         continue;
 
       c.moveTo(body.vertices[0].x, body.vertices[0].y);
@@ -851,7 +928,7 @@ export class Render {
    * @param {body[]} bodies
    * @param {RenderingContext} context
    */
-  Render.vertexNumbers = function (render, bodies, context) {
+  private vertexNumbers(bodies: Body[], context: CanvasRenderingContext2D) {
     var c = context,
       i,
       j,
@@ -877,7 +954,7 @@ export class Render {
    * @param {mouse} mouse
    * @param {RenderingContext} context
    */
-  Render.mousePosition = function (render, mouse, context) {
+  private mousePosition(mouse: Mouse, context: CanvasRenderingContext2D) {
     var c = context;
     c.fillStyle = 'rgba(255,255,255,0.8)';
     c.fillText(mouse.position.x + '  ' + mouse.position.y, mouse.position.x + 5, mouse.position.y - 5);
@@ -891,17 +968,17 @@ export class Render {
    * @param {body[]} bodies
    * @param {RenderingContext} context
    */
-  Render.bodyBounds = function (render, bodies, context) {
+  private bodyBounds(bodies: Body[], context: CanvasRenderingContext2D) {
     var c = context,
-      engine = render.engine,
-      options = render.options;
+      engine = this.engine,
+      options = this.options;
 
     c.beginPath();
 
     for (var i = 0; i < bodies.length; i++) {
       var body = bodies[i];
 
-      if (body.render.visible) {
+      if (body.visible) {
         var parts = bodies[i].parts;
         for (var j = parts.length > 1 ? 1 : 0; j < parts.length; j++) {
           var part = parts[j];
@@ -928,10 +1005,11 @@ export class Render {
    * @param {body[]} bodies
    * @param {RenderingContext} context
    */
-  Render.bodyAxes = function (render, bodies, context) {
+
+  private bodyAxes(bodies: Body[], context: CanvasRenderingContext2D) {
     var c = context,
-      engine = render.engine,
-      options = render.options,
+      engine = this.engine,
+      options = this.options,
       part,
       i,
       j,
@@ -943,7 +1021,7 @@ export class Render {
       var body = bodies[i],
         parts = body.parts;
 
-      if (!body.render.visible)
+      if (!body.visible)
         continue;
 
       if (options.showAxes) {
@@ -990,10 +1068,11 @@ export class Render {
    * @param {body[]} bodies
    * @param {RenderingContext} context
    */
-  Render.bodyPositions = function (render, bodies, context) {
+
+  private bodyPositions(bodies: Body[], context: CanvasRenderingContext2D) {
     var c = context,
-      engine = render.engine,
-      options = render.options,
+      engine = this.engine,
+      options = this.options,
       body,
       part,
       i,
@@ -1005,7 +1084,7 @@ export class Render {
     for (i = 0; i < bodies.length; i++) {
       body = bodies[i];
 
-      if (!body.render.visible)
+      if (!body.visible)
         continue;
 
       // handle compound parts
@@ -1028,7 +1107,7 @@ export class Render {
     // render previous positions
     for (i = 0; i < bodies.length; i++) {
       body = bodies[i];
-      if (body.render.visible) {
+      if (body.visible) {
         c.arc(body.positionPrev.x, body.positionPrev.y, 2, 0, 2 * Math.PI, false);
         c.closePath();
       }
@@ -1036,17 +1115,17 @@ export class Render {
 
     c.fillStyle = 'rgba(255,165,0,0.8)';
     c.fill();
-  };
+  }
 
   /**
    * Draws body velocity
    * @private
    * @method bodyVelocity
-   * @param {render} render
+   * @param {render} this
    * @param {body[]} bodies
    * @param {RenderingContext} context
    */
-  Render.bodyVelocity = function (render, bodies, context) {
+  private bodyVelocity(bodies: Body[], context: CanvasRenderingContext2D) {
     var c = context;
 
     c.beginPath();
@@ -1054,7 +1133,7 @@ export class Render {
     for (var i = 0; i < bodies.length; i++) {
       var body = bodies[i];
 
-      if (!body.render.visible)
+      if (!body.visible)
         continue;
 
       c.moveTo(body.position.x, body.position.y);
@@ -1064,23 +1143,24 @@ export class Render {
     c.lineWidth = 3;
     c.strokeStyle = 'cornflowerblue';
     c.stroke();
-  };
+  }
 
   /**
    * Draws body ids
    * @private
    * @method bodyIds
-   * @param {render} render
+   * @param {render} this
    * @param {body[]} bodies
    * @param {RenderingContext} context
    */
-  Render.bodyIds = function (render, bodies, context) {
+
+  private bodyIds(bodies: Body[], context: CanvasRenderingContext2D) {
     var c = context,
       i,
       j;
 
     for (i = 0; i < bodies.length; i++) {
-      if (!bodies[i].render.visible)
+      if (!bodies[i].visible)
         continue;
 
       var parts = bodies[i].parts;
@@ -1091,7 +1171,7 @@ export class Render {
         c.fillText(part.id, part.position.x + 10, part.position.y - 10);
       }
     }
-  };
+  }
 
   /**
    * Description
@@ -1101,9 +1181,10 @@ export class Render {
    * @param {pair[]} pairs
    * @param {RenderingContext} context
    */
-  Render.collisions = function (render, pairs, context) {
+
+  private collisions(pairs: Pair[], context: CanvasRenderingContext2D) {
     var c = context,
-      options = render.options,
+      options = this.options,
       pair,
       collision,
       corrected,
@@ -1174,7 +1255,7 @@ export class Render {
 
     c.lineWidth = 1;
     c.stroke();
-  };
+  }
 
   /**
    * Description
@@ -1184,9 +1265,9 @@ export class Render {
    * @param {pair[]} pairs
    * @param {RenderingContext} context
    */
-  Render.separations = function (render, pairs, context) {
+  private separations(pairs: Pair[], context: CanvasRenderingContext2D) {
     var c = context,
-      options = render.options,
+      options = this.options,
       pair,
       collision,
       corrected,
@@ -1231,19 +1312,20 @@ export class Render {
       c.strokeStyle = 'orange';
     }
     c.stroke();
-  };
+  }
 
   /**
    * Description
    * @private
    * @method grid
-   * @param {render} render
+   * @param {render} this
    * @param {grid} grid
    * @param {RenderingContext} context
    */
-  Render.grid = function (render, grid, context) {
+
+  private grid(grid: Grid, context: CanvasRenderingContext2D) {
     var c = context,
-      options = render.options;
+      options = this.options;
 
     if (options.wireframes) {
       c.strokeStyle = 'rgba(255,180,0,0.1)';
@@ -1270,7 +1352,7 @@ export class Render {
 
     c.lineWidth = 1;
     c.stroke();
-  };
+  }
 
   /**
    * Description
@@ -1279,7 +1361,7 @@ export class Render {
    * @param {inspector} inspector
    * @param {RenderingContext} context
    */
-  Render.inspector = function (inspector, context) {
+  private inspector(inspector: any, context: CanvasRenderingContext2D) {
     var engine = inspector.engine,
       selected = inspector.selected,
       render = inspector.render,
@@ -1355,195 +1437,7 @@ export class Render {
 
     if (options.hasBounds)
       context.setTransform(1, 0, 0, 1, 0, 0);
-  };
+  }
 
-  /**
-   * Description
-   * @method _createCanvas
-   * @private
-   * @param {} width
-   * @param {} height
-   * @return canvas
-   */
-  var _createCanvas = function (width, height) {
-  var canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  canvas.oncontextmenu = function () { return false; };
-  canvas.onselectstart = function () { return false; };
-  return canvas;
-};
-
-/**
- * Gets the pixel ratio of the canvas.
- * @method _getPixelRatio
- * @private
- * @param {HTMLElement} canvas
- * @return {Number} pixel ratio
- */
-var _getPixelRatio = function (canvas) {
-  var context = canvas.getContext('2d'),
-    devicePixelRatio = window.devicePixelRatio || 1,
-    backingStorePixelRatio = context.webkitBackingStorePixelRatio || context.mozBackingStorePixelRatio
-      || context.msBackingStorePixelRatio || context.oBackingStorePixelRatio
-      || context.backingStorePixelRatio || 1;
-
-  return devicePixelRatio / backingStorePixelRatio;
-};
-
-/**
- * Gets the requested texture (an Image) via its path
- * @method _getTexture
- * @private
- * @param {render} render
- * @param {string} imagePath
- * @return {Image} texture
- */
-var _getTexture = function (render, imagePath) {
-  var image = render.textures[imagePath];
-
-  if (image)
-    return image;
-
-  image = render.textures[imagePath] = new Image();
-  image.src = imagePath;
-
-  return image;
-};
-
-/**
- * Applies the background to the canvas using CSS.
- * @method applyBackground
- * @private
- * @param {render} render
- * @param {string} background
- */
-var _applyBackground = function (render, background) {
-  var cssBackground = background;
-
-  if (/(jpg|gif|png)$/.test(background))
-    cssBackground = 'url(' + background + ')';
-
-  render.canvas.style.background = cssBackground;
-  render.canvas.style.backgroundSize = "contain";
-  render.currentBackground = background;
-};
-
-  /*
-  *
-  *  Events Documentation
-  *
-  */
-
-  /**
-  * Fired before rendering
-  *
-  * @event beforeRender
-  * @param {} event An event object
-  * @param {number} event.timestamp The engine.timing.timestamp of the event
-  * @param {} event.source The source object of the event
-  * @param {} event.name The name of the event
-  */
-
-  /**
-  * Fired after rendering
-  *
-  * @event afterRender
-  * @param {} event An event object
-  * @param {number} event.timestamp The engine.timing.timestamp of the event
-  * @param {} event.source The source object of the event
-  * @param {} event.name The name of the event
-  */
-
-  /*
-  *
-  *  Properties Documentation
-  *
-  */
-
-  /**
-   * A back-reference to the `Matter.Render` module.
-   *
-   * @property controller
-   * @type render
-   */
-
-  /**
-   * A reference to the `Matter.Engine` instance to be used.
-   *
-   * @property engine
-   * @type engine
-   */
-
-  /**
-   * A reference to the element where the canvas is to be inserted (if `render.canvas` has not been specified)
-   *
-   * @property element
-   * @type HTMLElement
-   * @default null
-   */
-
-  /**
-   * The canvas element to render to. If not specified, one will be created if `render.element` has been specified.
-   *
-   * @property canvas
-   * @type HTMLCanvasElement
-   * @default null
-   */
-
-  /**
-   * The configuration options of the renderer.
-   *
-   * @property options
-   * @type {}
-   */
-
-  /**
-   * The target width in pixels of the `render.canvas` to be created.
-   *
-   * @property options.width
-   * @type number
-   * @default 800
-   */
-
-  /**
-   * The target height in pixels of the `render.canvas` to be created.
-   *
-   * @property options.height
-   * @type number
-   * @default 600
-   */
-
-  /**
-   * A flag that specifies if `render.bounds` should be used when rendering.
-   *
-   * @property options.hasBounds
-   * @type boolean
-   * @default false
-   */
-
-  /**
-   * A `Bounds` object that specifies the drawing view region.
-   * Rendering will be automatically transformed and scaled to fit within the canvas size (`render.options.width` and `render.options.height`).
-   * This allows for creating views that can pan or zoom around the scene.
-   * You must also set `render.options.hasBounds` to `true` to enable bounded rendering.
-   *
-   * @property bounds
-   * @type bounds
-   */
-
-  /**
-   * The 2d rendering context from the `render.canvas` element.
-   *
-   * @property context
-   * @type CanvasRenderingContext2D
-   */
-
-  /**
-   * The sprite texture cache.
-   *
-   * @property textures
-   * @type {}
-   */
 
 }

@@ -1,8 +1,9 @@
 import { Common, Events, Mouse } from './core';
 import { Vector, Vertex, Vertices, Bounds, Axes } from './geometry';
-import { Body, Impulse } from './body';
-import { objectTypeSpreadProperty } from '@babel/types';
-import { brotliDecompressSync } from 'zlib';
+import { Body, Filter, Impulse } from './body';
+import { Engine, Sleeping } from './core';
+import { Detector } from './collision';
+
 
 /**
 * The `Matter.Constraint` module contains methods for creating and manipulating constraints.
@@ -22,17 +23,33 @@ export class Constraint {
   public id: number;
   public label = 'Constraint';
   public type = 'constraint';
-  public bodyA: Body | undefined;
-  public bodyB: Body | undefined;
-  public pointA: Vector | undefined;
-  public pointB: Vector | undefined;
-  length: number;
+  public bodyA: Body | null = null;
+  public bodyB: Body | null = null;
+  public pointA: Vector | null = null;
+  public pointB: Vector | null = null;
+  public length: number = -1;
   public stiffness: number = 0.7;
   public damping: number = 0;
   public angularStiffness: number = 0;
-  angleA: number;
-  angleB: number;
+  public angleA: number = 0;
+  public angleB: number = 0;
   //plugin = {};
+  // render
+
+  // render
+  //     var render = {
+  //   visible: true,
+  //   lineWidth: 2,
+  //   strokeStyle: '#ffffff',
+  //   type: 'line',
+  //   anchors: true
+  // };
+  public visible = true;
+  public lineWidth = 2;
+  public strokeStyle = '#ffffff';
+  public renderType = 'line'; // type
+  public anchors = true;
+
 
   /**
    * Creates a new constraint.
@@ -59,14 +76,14 @@ export class Constraint {
     if (this.bodyA && !this.pointA)
       this.pointA = new Vector();
     if (this.bodyB && !this.pointB)
-      this.pointB = { x: 0, y: 0 };
+      this.pointB = new Vector();
 
     // calculate static length using initial world space points
-    const initialPointA = this.bodyA !== Body.None ? Vector.add(this.bodyA.position, this.pointA) : this.pointA,
-    const initialPointB = this.bodyB !== Body.None ? Vector.add(this.bodyB.position, this.pointB) : this.pointB,
-    const length = Vector.magnitude(Vector.sub(initialPointA, initialPointB));
-
-    this.length = typeof this.length !== 'undefined' ? this.length : length;
+    if (this.length === -1) {
+      const initialPointA = this.bodyA ? Vector.add(this.bodyA.position, this.pointA!) : this.pointA!;
+      const initialPointB = this.bodyB ? Vector.add(this.bodyB.position, this.pointB!) : this.pointB!;
+      this.length = Vector.magnitude(Vector.sub(initialPointA, initialPointB));
+    }
 
     // option defaults
 
@@ -76,20 +93,11 @@ export class Constraint {
     this.angleA = this.bodyA ? this.bodyA.angle : this.angleA;
     this.angleB = this.bodyB ? this.bodyB.angle : this.angleB;
 
-    // render
-    var render = {
-      visible: true,
-      lineWidth: 2,
-      strokeStyle: '#ffffff',
-      type: 'line',
-      anchors: true
-    };
-
     if (this.length === 0 && this.stiffness > 0.1) {
-      render.type = 'pin';
-      render.anchors = false;
+      this.renderType = 'pin';
+      this.anchors = false;
     } else if (this.stiffness < 0.9) {
-      render.type = 'spring';
+      this.renderTtype = 'spring';
     }
     return this;
   }
@@ -157,8 +165,8 @@ export class Constraint {
   static solve(constraint: Constraint, timeScale: number) {
     const bodyA = constraint.bodyA;
     const bodyB = constraint.bodyB;
-    const pointA = constraint.pointA;
-    const pointB = constraint.pointB;
+    const pointA = constraint.pointA!;
+    const pointB = constraint.pointB!;
 
     if (!bodyA && !bodyB)
       return;
@@ -193,23 +201,20 @@ export class Constraint {
     }
 
     // solve distance constraint with Gauss-Siedel method
-    var difference = (currentLength - constraint.length) / currentLength,
-      stiffness = constraint.stiffness < 1 ? constraint.stiffness * timeScale : constraint.stiffness,
-      force = Vector.mult(delta, difference * stiffness),
-      massTotal = (bodyA ? bodyA.inverseMass : 0) + (bodyB ? bodyB.inverseMass : 0),
-      inertiaTotal = (bodyA ? bodyA.inverseInertia : 0) + (bodyB ? bodyB.inverseInertia : 0),
-      resistanceTotal = massTotal + inertiaTotal,
-      torque,
-      share,
-      normal,
-      normalVelocity,
-      relativeVelocity;
+    const difference = (currentLength - constraint.length) / currentLength;
+    const stiffness = constraint.stiffness < 1 ? constraint.stiffness * timeScale : constraint.stiffness;
+    const force = Vector.mult(delta, difference * stiffness);
+    const massTotal = (bodyA ? bodyA.inverseMass : 0) + (bodyB ? bodyB.inverseMass : 0);
+    const inertiaTotal = (bodyA ? bodyA.inverseInertia : 0) + (bodyB ? bodyB.inverseInertia : 0);
+    const resistanceTotal = massTotal + inertiaTotal;
+    const zero = new Vector();
+    var normal = zero;
+    var normalVelocity = 0;
 
     if (constraint.damping) {
-      var zero = new Vector();
       normal = Vector.div(delta, currentLength);
 
-      relativeVelocity = Vector.sub(
+      var relativeVelocity = Vector.sub(
         bodyB && Vector.sub(bodyB.position, bodyB.positionPrev) || zero,
         bodyA && Vector.sub(bodyA.position, bodyA.positionPrev) || zero
       );
@@ -218,7 +223,7 @@ export class Constraint {
     }
 
     if (bodyA && !bodyA.isStatic) {
-      share = bodyA.inverseMass / massTotal;
+      var share = bodyA.inverseMass / massTotal;
 
       // keep track of applied impulses for post solving
       bodyA.constraintImpulse.x -= force.x * share;
@@ -235,7 +240,7 @@ export class Constraint {
       }
 
       // apply torque
-      torque = (Vector.cross(pointA, force) / resistanceTotal) * _torqueDampen * bodyA.inverseInertia * (1 - constraint.angularStiffness);
+      const torque = (Vector.cross(pointA, force) / resistanceTotal) * _torqueDampen * bodyA.inverseInertia * (1 - constraint.angularStiffness);
       bodyA.constraintImpulse.angle -= torque;
       bodyA.angle -= torque;
     }
@@ -258,7 +263,7 @@ export class Constraint {
       }
 
       // apply torque
-      torque = (Vector.cross(pointB, force) / resistanceTotal) * _torqueDampen * bodyB.inverseInertia * (1 - constraint.angularStiffness);
+      const torque = (Vector.cross(pointB, force) / resistanceTotal) * _torqueDampen * bodyB.inverseInertia * (1 - constraint.angularStiffness);
       bodyB.constraintImpulse.angle += torque;
       bodyB.angle += torque;
     }
@@ -270,9 +275,10 @@ export class Constraint {
    * @method postSolveAll
    * @param {body[]} bodies
    */
+
   public static postSolveAll(bodies: Body[]) {
     for (var i = 0; i < bodies.length; i++) {
-      var body = bodies[i],
+      const body = bodies[i];
       var impulse = body.constraintImpulse;
 
       if (body.isStatic || (impulse.x === 0 && impulse.y === 0 && impulse.angle === 0)) {
@@ -316,8 +322,8 @@ export class Constraint {
    */
   public pointAWorld() {
     return new Vector(
-      (this.bodyA ? this.bodyA.position.x : 0) + this.pointA.x,
-      (this.bodyA ? this.bodyA.position.y : 0) + this.pointA.y
+      (this.bodyA ? this.bodyA.position.x : 0) + this.pointA!.x,
+      (this.bodyA ? this.bodyA.position.y : 0) + this.pointA!.y
     );
   }
 
@@ -329,160 +335,10 @@ export class Constraint {
    */
   public pointBWorld() {
     return new Vector(
-      (this.bodyB ? this.bodyB.position.x : 0) + this.pointB.x,
-      (this.bodyB ? this.bodyB.position.y : 0) + this.pointB.y
+      (this.bodyB ? this.bodyB.position.x : 0) + this.pointB!.x,
+      (this.bodyB ? this.bodyB.position.y : 0) + this.pointB!.y
     );
   }
-
-  /*
-  *
-  *  Properties Documentation
-  *
-  */
-
-  /**
-   * An integer `Number` uniquely identifying number generated in `Composite.create` by `Common.nextId`.
-   *
-   * @property id
-   * @type number
-   */
-
-  /**
-   * A `String` denoting the type of object.
-   *
-   * @property type
-   * @type string
-   * @default "constraint"
-   * @readOnly
-   */
-
-  /**
-   * An arbitrary `String` name to help the user identify and manage bodies.
-   *
-   * @property label
-   * @type string
-   * @default "Constraint"
-   */
-
-  /**
-   * An `Object` that defines the rendering properties to be consumed by the module `Matter.Render`.
-   *
-   * @property render
-   * @type object
-   */
-
-  /**
-   * A flag that indicates if the constraint should be rendered.
-   *
-   * @property render.visible
-   * @type boolean
-   * @default true
-   */
-
-  /**
-   * A `Number` that defines the line width to use when rendering the constraint outline.
-   * A value of `0` means no outline will be rendered.
-   *
-   * @property render.lineWidth
-   * @type number
-   * @default 2
-   */
-
-  /**
-   * A `String` that defines the stroke style to use when rendering the constraint outline.
-   * It is the same as when using a canvas, so it accepts CSS style property values.
-   *
-   * @property render.strokeStyle
-   * @type string
-   * @default a random colour
-   */
-
-  /**
-   * A `String` that defines the constraint rendering type. 
-   * The possible values are 'line', 'pin', 'spring'.
-   * An appropriate render type will be automatically chosen unless one is given in options.
-   *
-   * @property render.type
-   * @type string
-   * @default 'line'
-   */
-
-  /**
-   * A `Boolean` that defines if the constraint's anchor points should be rendered.
-   *
-   * @property render.anchors
-   * @type boolean
-   * @default true
-   */
-
-  /**
-   * The first possible `Body` that this constraint is attached to.
-   *
-   * @property bodyA
-   * @type body
-   * @default null
-   */
-
-  /**
-   * The second possible `Body` that this constraint is attached to.
-   *
-   * @property bodyB
-   * @type body
-   * @default null
-   */
-
-  /**
-   * A `Vector` that specifies the offset of the constraint from center of the `constraint.bodyA` if defined, otherwise a world-space position.
-   *
-   * @property pointA
-   * @type vector
-   * @default { x: 0, y: 0 }
-   */
-
-  /**
-   * A `Vector` that specifies the offset of the constraint from center of the `constraint.bodyB` if defined, otherwise a world-space position.
-   *
-   * @property pointB
-   * @type vector
-   * @default { x: 0, y: 0 }
-   */
-
-  /**
-   * A `Number` that specifies the stiffness of the constraint, i.e. the rate at which it returns to its resting `constraint.length`.
-   * A value of `1` means the constraint should be very stiff.
-   * A value of `0.2` means the constraint acts like a soft spring.
-   *
-   * @property stiffness
-   * @type number
-   * @default 1
-   */
-
-  /**
-   * A `Number` that specifies the damping of the constraint, 
-   * i.e. the amount of resistance applied to each body based on their velocities to limit the amount of oscillation.
-   * Damping will only be apparent when the constraint also has a very low `stiffness`.
-   * A value of `0.1` means the constraint will apply heavy damping, resulting in little to no oscillation.
-   * A value of `0` means the constraint will apply no damping.
-   *
-   * @property damping
-   * @type number
-   * @default 0
-   */
-
-  /**
-   * A `Number` that specifies the target resting length of the constraint. 
-   * It is calculated automatically in `Constraint.create` from initial positions of the `constraint.bodyA` and `constraint.bodyB`.
-   *
-   * @property length
-   * @type number
-   */
-
-  /**
-   * An object reserved for storing plugin-specific properties.
-   *
-   * @property plugin
-   * @type {}
-   */
 
 }
 
@@ -499,9 +355,9 @@ export class MouseConstraint {
   public constraint: Constraint;
   public type = 'mouseConstraint';
   public mouse: Mouse;
-  public element: HTMLElement;
-  public body = null;
-  public collisionFilter = Body.defaultFilter;
+  public element: HTMLElement | null;
+  public body: Body | null = null;
+  public collisionFilter: Filter = Body.defaultFilter;
 
   /**
    * Creates a new mouse constraint.
@@ -540,13 +396,14 @@ export class MouseConstraint {
     this.mouse = mouse;
     this.element = null;
     this.body = null;
+
     if (options !== undefined) {
       Object.assign(this, options);
     }
 
-    Events.on(engine, 'beforeUpdate', function () {
-      var allBodies = Composite.allBodies(engine.world);
-      MouseConstraint.update(mouseConstraint, allBodies);
+    Events.on(engine, 'beforeUpdate', () => {
+      var allBodies = engine.world.allBodies();
+      MouseConstraint.update(this, allBodies);
       MouseConstraint.triggerEvents(this);
     });
   }
@@ -577,10 +434,8 @@ export class MouseConstraint {
                 constraint.bodyB = mouseConstraint.body = body;
                 constraint.pointB = { x: mouse.position.x - body.position.x, y: mouse.position.y - body.position.y };
                 constraint.angleB = body.angle;
-
                 Sleeping.set(body, false);
                 Events.trigger(mouseConstraint, 'startdrag', { mouse: mouse, body: body });
-
                 break;
               }
             }
@@ -619,7 +474,7 @@ export class MouseConstraint {
       Events.trigger(mouseConstraint, 'mouseup', { mouse: mouse });
 
     // reset the mouse state ready for the next step
-    Mouse.clearSourceEvents(mouse);
+    mouse.clearSourceEvents();
   }
 
 }

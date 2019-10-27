@@ -1,3 +1,9 @@
+
+import { Body, Composite } from './body';
+import { Constraint } from './constraint';
+import { Vertices, Vector, Bounds } from './geometry';
+import { Common } from './core';
+
 /**
 * The `Matter.Bodies` module contains factory methods for creating rigid body models 
 * with commonly used body configurations (such as rectangles, circles and other polygons).
@@ -9,18 +15,7 @@
 
 // TODO: true circle bodies
 
-var Bodies = {};
-
-module.exports = Bodies;
-
-var Vertices = require('../geometry/Vertices');
-var Common = require('../core/Common');
-var Body = require('../body/Body');
-var Bounds = require('../geometry/Bounds');
-var Vector = require('../geometry/Vector');
-
-(function () {
-
+export class Bodies {
   /**
    * Creates a new rigid body model with a rectangle hull. 
    * The options parameter is an object that specifies any properties you wish to override the defaults.
@@ -33,24 +28,22 @@ var Vector = require('../geometry/Vector');
    * @param {object} [options]
    * @return {body} A new rectangle body
    */
-  Bodies.rectangle = function (x, y, width, height, options) {
-    options = options || {};
 
-    var rectangle = {
+  public static rectangle(x: number, y: number, width: number, height: number, options: any = {}) {
+    var rectangle: any = {
       label: 'Rectangle Body',
-      position: { x: x, y: y },
-      vertices: Vertices.fromPath('L 0 0 L ' + width + ' 0 L ' + width + ' ' + height + ' L 0 ' + height)
-    };
-
+      position: new Vector(x, y),
+      vertices: Vertices.fromPath([0, 0, width, 0, width, height, 0, height])
+    }
     if (options.chamfer) {
       var chamfer = options.chamfer;
       rectangle.vertices = Vertices.chamfer(rectangle.vertices, chamfer.radius,
         chamfer.quality, chamfer.qualityMin, chamfer.qualityMax);
       delete options.chamfer;
     }
-
-    return Body.create(Common.extend({}, rectangle, options));
-  };
+    Object.assign(options, rectangle);
+    return new Body(options);
+  }
 
   /**
    * Creates a new rigid body model with a trapezoid hull. 
@@ -65,24 +58,25 @@ var Vector = require('../geometry/Vector');
    * @param {object} [options]
    * @return {body} A new trapezoid body
    */
-  Bodies.trapezoid = function (x, y, width, height, slope, options) {
-    options = options || {};
 
+  public static trapezoid(x: number, y: number, width: number, height: number, slope: number, options: any = {}) {
     slope *= 0.5;
     var roof = (1 - (slope * 2)) * width;
 
-    var x1 = width * slope,
-      x2 = x1 + roof,
-      x3 = x2 + x1,
-      verticesPath;
+    const x1 = width * slope;
+    const x2 = x1 + roof;
+    const x3 = x2 + x1;
+    var verticesPath: number[];
 
     if (slope < 0.5) {
-      verticesPath = 'L 0 0 L ' + x1 + ' ' + (-height) + ' L ' + x2 + ' ' + (-height) + ' L ' + x3 + ' 0';
+      //verticesPath = 'L 0 0 L ' + x1 + ' ' + (-height) + ' L ' + x2 + ' ' + (-height) + ' L ' + x3 + ' 0';
+      verticesPath = [0, 0, x1, (-height), x2, (-height), x3, 0];
     } else {
-      verticesPath = 'L 0 0 L ' + x2 + ' ' + (-height) + ' L ' + x3 + ' 0';
+      //verticesPath = 'L 0 0 L ' + x2 + ' ' + (-height) + ' L ' + x3 + ' 0';
+      verticesPath = [0, 0, x2, (-height), x3, 0];
     }
 
-    var trapezoid = {
+    var trapezoid: any = {
       label: 'Trapezoid Body',
       position: { x: x, y: y },
       vertices: Vertices.fromPath(verticesPath)
@@ -94,9 +88,9 @@ var Vector = require('../geometry/Vector');
         chamfer.quality, chamfer.qualityMin, chamfer.qualityMax);
       delete options.chamfer;
     }
-
-    return Body.create(Common.extend({}, trapezoid, options));
-  };
+    Object.assign(trapezoid, options);
+    return new Body(trapezoid);
+  }
 
   /**
    * Creates a new rigid body model with a circle hull. 
@@ -110,24 +104,21 @@ var Vector = require('../geometry/Vector');
    * @param {number} [maxSides]
    * @return {body} A new circle body
    */
-  Bodies.circle = function (x, y, radius, options, maxSides) {
-    options = options || {};
-
+  public static circle(x: number, y: number, radius: number, options: any = {}, maxSides = 25): Body {
     var circle = {
       label: 'Circle Body',
       circleRadius: radius
-    };
+    }
 
     // approximate circles with polygons until true circles implemented in SAT
-    maxSides = maxSides || 25;
     var sides = Math.ceil(Math.max(10, Math.min(maxSides, radius)));
 
     // optimisation: always use even number of sides (half the number of unique axes)
     if (sides % 2 === 1)
       sides += 1;
-
-    return Bodies.polygon(x, y, sides, radius, Common.extend({}, circle, options));
-  };
+    Object.assign(options, circle);
+    return Bodies.polygon(x, y, sides, radius, options);
+  }
 
   /**
    * Creates a new rigid body model with a regular polygon hull with the given number of sides. 
@@ -141,39 +132,37 @@ var Vector = require('../geometry/Vector');
    * @param {object} [options]
    * @return {body} A new regular polygon body
    */
-  Bodies.polygon = function (x, y, sides, radius, options) {
-    options = options || {};
 
+  public static polygon(x: number, y: number, sides: number, radius: number, options: any = {}): Body {
     if (sides < 3)
       return Bodies.circle(x, y, radius, options);
-
-    var theta = 2 * Math.PI / sides,
-      path = '',
-      offset = theta * 0.5;
+    const theta = 2 * Math.PI / sides;
+    const path: number[] = [];
+    const offset = theta * 0.5;
 
     for (var i = 0; i < sides; i += 1) {
       var angle = offset + (i * theta),
         xx = Math.cos(angle) * radius,
         yy = Math.sin(angle) * radius;
-
-      path += 'L ' + xx.toFixed(3) + ' ' + yy.toFixed(3) + ' ';
+      //path += 'L ' + xx.toFixed(3) + ' ' + yy.toFixed(3) + ' ';
+      path.push(xx);
+      path.push(yy);
     }
 
-    var polygon = {
+    var polygon: any = {
       label: 'Polygon Body',
-      position: { x: x, y: y },
+      position: new Vector(x, y),
       vertices: Vertices.fromPath(path)
     };
-
     if (options.chamfer) {
       var chamfer = options.chamfer;
       polygon.vertices = Vertices.chamfer(polygon.vertices, chamfer.radius,
         chamfer.quality, chamfer.qualityMin, chamfer.qualityMax);
       delete options.chamfer;
     }
-
-    return Body.create(Common.extend({}, polygon, options));
-  };
+    Object.assign(options, polygon);
+    return new Body(options);
+  }
 
   /**
    * Creates a body using the supplied vertices (or an array containing multiple sets of vertices).
@@ -195,140 +184,142 @@ var Vector = require('../geometry/Vector');
    * @param {number} [minimumArea=10]
    * @return {body}
    */
-  Bodies.fromVertices = function (x, y, vertexSets, options, flagInternal, removeCollinear, minimumArea) {
-    var decomp = typeof decomp !== 'undefined' ? decomp : require('poly-decomp'),
-      body,
-      parts,
-      isConvex,
-      vertices,
-      i,
-      j,
-      k,
-      v,
-      z;
 
-    options = options || {};
-    parts = [];
+  // public static fromVertices = function (x, y, vertexSets, options, flagInternal, removeCollinear, minimumArea) {
+  //   var decomp = typeof decomp !== 'undefined' ? decomp : require('poly-decomp'),
+  //     body,
+  //     parts,
+  //     isConvex,
+  //     vertices,
+  //     i,
+  //     j,
+  //     k,
+  //     v,
+  //     z;
 
-    flagInternal = typeof flagInternal !== 'undefined' ? flagInternal : false;
-    removeCollinear = typeof removeCollinear !== 'undefined' ? removeCollinear : 0.01;
-    minimumArea = typeof minimumArea !== 'undefined' ? minimumArea : 10;
+  //   options = options || {};
+  //   parts = [];
 
-    if (!decomp) {
-      Common.warn('Bodies.fromVertices: poly-decomp.js required. Could not decompose vertices. Fallback to convex hull.');
-    }
+  //   flagInternal = typeof flagInternal !== 'undefined' ? flagInternal : false;
+  //   removeCollinear = typeof removeCollinear !== 'undefined' ? removeCollinear : 0.01;
+  //   minimumArea = typeof minimumArea !== 'undefined' ? minimumArea : 10;
 
-    // ensure vertexSets is an array of arrays
-    if (!Common.isArray(vertexSets[0])) {
-      vertexSets = [vertexSets];
-    }
+  //   if (!decomp) {
+  //     Common.warn('Bodies.fromVertices: poly-decomp.js required. Could not decompose vertices. Fallback to convex hull.');
+  //   }
 
-    for (v = 0; v < vertexSets.length; v += 1) {
-      vertices = vertexSets[v];
-      isConvex = Vertices.isConvex(vertices);
+  //   // ensure vertexSets is an array of arrays
+  //   if (!Common.isArray(vertexSets[0])) {
+  //     vertexSets = [vertexSets];
+  //   }
 
-      if (isConvex || !decomp) {
-        if (isConvex) {
-          vertices = Vertices.clockwiseSort(vertices);
-        } else {
-          // fallback to convex hull when decomposition is not possible
-          vertices = Vertices.hull(vertices);
-        }
+  //   for (v = 0; v < vertexSets.length; v += 1) {
+  //     vertices = vertexSets[v];
+  //     isConvex = Vertices.isConvex(vertices);
 
-        parts.push({
-          position: { x: x, y: y },
-          vertices: vertices
-        });
-      } else {
-        // initialise a decomposition
-        var concave = vertices.map(function (vertex) {
-          return [vertex.x, vertex.y];
-        });
+  //     if (isConvex || !decomp) {
+  //       if (isConvex) {
+  //         vertices = Vertices.clockwiseSort(vertices);
+  //       } else {
+  //         // fallback to convex hull when decomposition is not possible
+  //         vertices = Vertices.hull(vertices);
+  //       }
 
-        // vertices are concave and simple, we can decompose into parts
-        decomp.makeCCW(concave);
-        if (removeCollinear !== false)
-          decomp.removeCollinearPoints(concave, removeCollinear);
+  //       parts.push({
+  //         position: { x: x, y: y },
+  //         vertices: vertices
+  //       });
+  //     } else {
+  //       // initialise a decomposition
+  //       var concave = vertices.map(function (vertex) {
+  //         return [vertex.x, vertex.y];
+  //       });
 
-        // use the quick decomposition algorithm (Bayazit)
-        var decomposed = decomp.quickDecomp(concave);
+  //       // vertices are concave and simple, we can decompose into parts
+  //       decomp.makeCCW(concave);
+  //       if (removeCollinear !== false)
+  //         decomp.removeCollinearPoints(concave, removeCollinear);
 
-        // for each decomposed chunk
-        for (i = 0; i < decomposed.length; i++) {
-          var chunk = decomposed[i];
+  //       // use the quick decomposition algorithm (Bayazit)
+  //       var decomposed = decomp.quickDecomp(concave);
 
-          // convert vertices into the correct structure
-          var chunkVertices = chunk.map(function (vertices) {
-            return {
-              x: vertices[0],
-              y: vertices[1]
-            };
-          });
+  //       // for each decomposed chunk
+  //       for (i = 0; i < decomposed.length; i++) {
+  //         var chunk = decomposed[i];
 
-          // skip small chunks
-          if (minimumArea > 0 && Vertices.area(chunkVertices) < minimumArea)
-            continue;
+  //         // convert vertices into the correct structure
+  //         var chunkVertices = chunk.map(function (vertices) {
+  //           return {
+  //             x: vertices[0],
+  //             y: vertices[1]
+  //           };
+  //         });
 
-          // create a compound part
-          parts.push({
-            position: Vertices.centre(chunkVertices),
-            vertices: chunkVertices
-          });
-        }
-      }
-    }
+  //         // skip small chunks
+  //         if (minimumArea > 0 && Vertices.area(chunkVertices) < minimumArea)
+  //           continue;
 
-    // create body parts
-    for (i = 0; i < parts.length; i++) {
-      parts[i] = Body.create(Common.extend(parts[i], options));
-    }
+  //         // create a compound part
+  //         parts.push({
+  //           position: Vertices.centre(chunkVertices),
+  //           vertices: chunkVertices
+  //         });
+  //       }
+  //     }
+  //   }
 
-    // flag internal edges (coincident part edges)
-    if (flagInternal) {
-      var coincident_max_dist = 5;
+  //   // create body parts
+  //   for (i = 0; i < parts.length; i++) {
+  //     parts[i] = Body.create(Common.extend(parts[i], options));
+  //   }
 
-      for (i = 0; i < parts.length; i++) {
-        var partA = parts[i];
+  //   // flag internal edges (coincident part edges)
+  //   if (flagInternal) {
+  //     var coincident_max_dist = 5;
 
-        for (j = i + 1; j < parts.length; j++) {
-          var partB = parts[j];
+  //     for (i = 0; i < parts.length; i++) {
+  //       var partA = parts[i];
 
-          if (Bounds.overlaps(partA.bounds, partB.bounds)) {
-            var pav = partA.vertices,
-              pbv = partB.vertices;
+  //       for (j = i + 1; j < parts.length; j++) {
+  //         var partB = parts[j];
 
-            // iterate vertices of both parts
-            for (k = 0; k < partA.vertices.length; k++) {
-              for (z = 0; z < partB.vertices.length; z++) {
-                // find distances between the vertices
-                var da = Vector.magnitudeSquared(Vector.sub(pav[(k + 1) % pav.length], pbv[z])),
-                  db = Vector.magnitudeSquared(Vector.sub(pav[k], pbv[(z + 1) % pbv.length]));
+  //         if (Bounds.overlaps(partA.bounds, partB.bounds)) {
+  //           var pav = partA.vertices,
+  //             pbv = partB.vertices;
 
-                // if both vertices are very close, consider the edge concident (internal)
-                if (da < coincident_max_dist && db < coincident_max_dist) {
-                  pav[k].isInternal = true;
-                  pbv[z].isInternal = true;
-                }
-              }
-            }
+  //           // iterate vertices of both parts
+  //           for (k = 0; k < partA.vertices.length; k++) {
+  //             for (z = 0; z < partB.vertices.length; z++) {
+  //               // find distances between the vertices
+  //               var da = Vector.magnitudeSquared(Vector.sub(pav[(k + 1) % pav.length], pbv[z])),
+  //                 db = Vector.magnitudeSquared(Vector.sub(pav[k], pbv[(z + 1) % pbv.length]));
 
-          }
-        }
-      }
-    }
+  //               // if both vertices are very close, consider the edge concident (internal)
+  //               if (da < coincident_max_dist && db < coincident_max_dist) {
+  //                 pav[k].isInternal = true;
+  //                 pbv[z].isInternal = true;
+  //               }
+  //             }
+  //           }
 
-    if (parts.length > 1) {
-      // create the parent body to be returned, that contains generated compound parts
-      body = Body.create(Common.extend({ parts: parts.slice(0) }, options));
-      Body.setPosition(body, { x: x, y: y });
+  //         }
+  //       }
+  //     }
+  //   }
 
-      return body;
-    } else {
-      return parts[0];
-    }
-  };
+  //   if (parts.length > 1) {
+  //     // create the parent body to be returned, that contains generated compound parts
+  //     body = Body.create(Common.extend({ parts: parts.slice(0) }, options));
+  //     Body.setPosition(body, { x: x, y: y });
 
-})();
+  //     return body;
+  //   } else {
+  //     return parts[0];
+  //   }
+  // }
+
+}
+
 /**
 * The `Matter.Composites` module contains factory methods for creating composite bodies
 * with commonly used configurations (such as stacks and chains).
@@ -338,17 +329,7 @@ var Vector = require('../geometry/Vector');
 * @class Composites
 */
 
-var Composites = {};
-
-module.exports = Composites;
-
-var Composite = require('../body/Composite');
-var Constraint = require('../constraint/Constraint');
-var Common = require('../core/Common');
-var Body = require('../body/Body');
-var Bodies = require('./Bodies');
-
-(function () {
+export class Composites {
 
   /**
    * Create a new composite containing bodies created in the callback in a grid arrangement.
@@ -363,45 +344,45 @@ var Bodies = require('./Bodies');
    * @param {function} callback
    * @return {composite} A new composite containing objects created in the callback
    */
-  Composites.stack = function (xx, yy, columns, rows, columnGap, rowGap, callback) {
-    var stack = Composite.create({ label: 'Stack' }),
-      x = xx,
-      y = yy,
-      lastBody,
-      i = 0;
+  // public static stack(xx: number, yy: number, columns: number, rows: number, columnGap: number, rowGap: number, callback) {
+  //   var stack = Composite.create({ label: 'Stack' }),
+  //     x = xx,
+  //     y = yy,
+  //     lastBody,
+  //     i = 0;
 
-    for (var row = 0; row < rows; row++) {
-      var maxHeight = 0;
+  //   for (var row = 0; row < rows; row++) {
+  //     var maxHeight = 0;
 
-      for (var column = 0; column < columns; column++) {
-        var body = callback(x, y, column, row, lastBody, i);
+  //     for (var column = 0; column < columns; column++) {
+  //       var body = callback(x, y, column, row, lastBody, i);
 
-        if (body) {
-          var bodyHeight = body.bounds.max.y - body.bounds.min.y,
-            bodyWidth = body.bounds.max.x - body.bounds.min.x;
+  //       if (body) {
+  //         var bodyHeight = body.bounds.max.y - body.bounds.min.y,
+  //           bodyWidth = body.bounds.max.x - body.bounds.min.x;
 
-          if (bodyHeight > maxHeight)
-            maxHeight = bodyHeight;
+  //         if (bodyHeight > maxHeight)
+  //           maxHeight = bodyHeight;
 
-          Body.translate(body, { x: bodyWidth * 0.5, y: bodyHeight * 0.5 });
+  //         Body.translate(body, { x: bodyWidth * 0.5, y: bodyHeight * 0.5 });
 
-          x = body.bounds.max.x + columnGap;
+  //         x = body.bounds.max.x + columnGap;
 
-          Composite.addBody(stack, body);
+  //         Composite.addBody(stack, body);
 
-          lastBody = body;
-          i += 1;
-        } else {
-          x += columnGap;
-        }
-      }
+  //         lastBody = body;
+  //         i += 1;
+  //       } else {
+  //         x += columnGap;
+  //       }
+  //     }
 
-      y += maxHeight + rowGap;
-      x = xx;
-    }
+  //     y += maxHeight + rowGap;
+  //     x = xx;
+  //   }
 
-    return stack;
-  };
+  //   return stack;
+  // };
 
   /**
    * Chains all bodies in the given composite together using constraints.
@@ -414,82 +395,82 @@ var Bodies = require('./Bodies');
    * @param {object} options
    * @return {composite} A new composite containing objects chained together with constraints
    */
-  Composites.chain = function (composite, xOffsetA, yOffsetA, xOffsetB, yOffsetB, options) {
-    var bodies = composite.bodies;
+  // public static chain(composite: Composite, xOffsetA: number, yOffsetA: number, xOffsetB: number, yOffsetB: number, options = {}) {
+  //   var bodies = composite.bodies;
 
-    for (var i = 1; i < bodies.length; i++) {
-      var bodyA = bodies[i - 1],
-        bodyB = bodies[i],
-        bodyAHeight = bodyA.bounds.max.y - bodyA.bounds.min.y,
-        bodyAWidth = bodyA.bounds.max.x - bodyA.bounds.min.x,
-        bodyBHeight = bodyB.bounds.max.y - bodyB.bounds.min.y,
-        bodyBWidth = bodyB.bounds.max.x - bodyB.bounds.min.x;
+  //   for (var i = 1; i < bodies.length; i++) {
+  //     var bodyA = bodies[i - 1],
+  //       bodyB = bodies[i],
+  //       bodyAHeight = bodyA.bounds.max.y - bodyA.bounds.min.y,
+  //       bodyAWidth = bodyA.bounds.max.x - bodyA.bounds.min.x,
+  //       bodyBHeight = bodyB.bounds.max.y - bodyB.bounds.min.y,
+  //       bodyBWidth = bodyB.bounds.max.x - bodyB.bounds.min.x;
 
-      var defaults = {
-        bodyA: bodyA,
-        pointA: { x: bodyAWidth * xOffsetA, y: bodyAHeight * yOffsetA },
-        bodyB: bodyB,
-        pointB: { x: bodyBWidth * xOffsetB, y: bodyBHeight * yOffsetB }
-      };
+  //     var defaults = {
+  //       bodyA: bodyA,
+  //       pointA: new Vector(bodyAWidth * xOffsetA, bodyAHeight * yOffsetA),
+  //       bodyB: bodyB,
+  //       pointB: new Vector(bodyBWidth * xOffsetB, bodyBHeight * yOffsetB)
+  //     };
 
-      var constraint = Common.extend(defaults, options);
+  //     Object.assign(options, defaults);
 
-      Composite.addConstraint(composite, Constraint.create(constraint));
-    }
+  //     composite.addConstraint(Constraint.create(constraint));
+  //   }
 
-    composite.label += ' Chain';
+  //   composite.label += ' Chain';
 
-    return composite;
-  };
+  //   return composite;
+  // };
 
-  /**
-   * Connects bodies in the composite with constraints in a grid pattern, with optional cross braces.
-   * @method mesh
-   * @param {composite} composite
-   * @param {number} columns
-   * @param {number} rows
-   * @param {boolean} crossBrace
-   * @param {object} options
-   * @return {composite} The composite containing objects meshed together with constraints
-   */
-  Composites.mesh = function (composite, columns, rows, crossBrace, options) {
-    var bodies = composite.bodies,
-      row,
-      col,
-      bodyA,
-      bodyB,
-      bodyC;
+  // /**
+  //  * Connects bodies in the composite with constraints in a grid pattern, with optional cross braces.
+  //  * @method mesh
+  //  * @param {composite} composite
+  //  * @param {number} columns
+  //  * @param {number} rows
+  //  * @param {boolean} crossBrace
+  //  * @param {object} options
+  //  * @return {composite} The composite containing objects meshed together with constraints
+  //  */
+  // Composites.mesh = function (composite, columns, rows, crossBrace, options) {
+  //   var bodies = composite.bodies,
+  //     row,
+  //     col,
+  //     bodyA,
+  //     bodyB,
+  //     bodyC;
 
-    for (row = 0; row < rows; row++) {
-      for (col = 1; col < columns; col++) {
-        bodyA = bodies[(col - 1) + (row * columns)];
-        bodyB = bodies[col + (row * columns)];
-        Composite.addConstraint(composite, Constraint.create(Common.extend({ bodyA: bodyA, bodyB: bodyB }, options)));
-      }
+  //   for (row = 0; row < rows; row++) {
+  //     for (col = 1; col < columns; col++) {
+  //       bodyA = bodies[(col - 1) + (row * columns)];
+  //       bodyB = bodies[col + (row * columns)];
+  //       Composite.addConstraint(composite, Constraint.create(Common.extend({ bodyA: bodyA, bodyB: bodyB }, options)));
+  //     }
 
-      if (row > 0) {
-        for (col = 0; col < columns; col++) {
-          bodyA = bodies[col + ((row - 1) * columns)];
-          bodyB = bodies[col + (row * columns)];
-          Composite.addConstraint(composite, Constraint.create(Common.extend({ bodyA: bodyA, bodyB: bodyB }, options)));
+  //     if (row > 0) {
+  //       for (col = 0; col < columns; col++) {
+  //         bodyA = bodies[col + ((row - 1) * columns)];
+  //         bodyB = bodies[col + (row * columns)];
+  //         Composite.addConstraint(composite, Constraint.create(Common.extend({ bodyA: bodyA, bodyB: bodyB }, options)));
 
-          if (crossBrace && col > 0) {
-            bodyC = bodies[(col - 1) + ((row - 1) * columns)];
-            Composite.addConstraint(composite, Constraint.create(Common.extend({ bodyA: bodyC, bodyB: bodyB }, options)));
-          }
+  //         if (crossBrace && col > 0) {
+  //           bodyC = bodies[(col - 1) + ((row - 1) * columns)];
+  //           Composite.addConstraint(composite, Constraint.create(Common.extend({ bodyA: bodyC, bodyB: bodyB }, options)));
+  //         }
 
-          if (crossBrace && col < columns - 1) {
-            bodyC = bodies[(col + 1) + ((row - 1) * columns)];
-            Composite.addConstraint(composite, Constraint.create(Common.extend({ bodyA: bodyC, bodyB: bodyB }, options)));
-          }
-        }
-      }
-    }
+  //         if (crossBrace && col < columns - 1) {
+  //           bodyC = bodies[(col + 1) + ((row - 1) * columns)];
+  //           Composite.addConstraint(composite, Constraint.create(Common.extend({ bodyA: bodyC, bodyB: bodyB }, options)));
+  //         }
+  //       }
+  //     }
+  //   }
 
-    composite.label += ' Mesh';
+  //   composite.label += ' Mesh';
 
-    return composite;
-  };
+  //   return composite;
+  // };
 
   /**
    * Create a new composite containing bodies created in the callback in a pyramid arrangement.
@@ -504,155 +485,156 @@ var Bodies = require('./Bodies');
    * @param {function} callback
    * @return {composite} A new composite containing objects created in the callback
    */
-  Composites.pyramid = function (xx, yy, columns, rows, columnGap, rowGap, callback) {
-    return Composites.stack(xx, yy, columns, rows, columnGap, rowGap, function (x, y, column, row, lastBody, i) {
-      var actualRows = Math.min(rows, Math.ceil(columns / 2)),
-        lastBodyWidth = lastBody ? lastBody.bounds.max.x - lastBody.bounds.min.x : 0;
 
-      if (row > actualRows)
-        return;
+  // Composites.pyramid = function (xx, yy, columns, rows, columnGap, rowGap, callback) {
+  //   return Composites.stack(xx, yy, columns, rows, columnGap, rowGap, function (x, y, column, row, lastBody, i) {
+  //     var actualRows = Math.min(rows, Math.ceil(columns / 2)),
+  //       lastBodyWidth = lastBody ? lastBody.bounds.max.x - lastBody.bounds.min.x : 0;
 
-      // reverse row order
-      row = actualRows - row;
+  //     if (row > actualRows)
+  //       return;
 
-      var start = row,
-        end = columns - 1 - row;
+  //     // reverse row order
+  //     row = actualRows - row;
 
-      if (column < start || column > end)
-        return;
+  //     var start = row,
+  //       end = columns - 1 - row;
 
-      // retroactively fix the first body's position, since width was unknown
-      if (i === 1) {
-        Body.translate(lastBody, { x: (column + (columns % 2 === 1 ? 1 : -1)) * lastBodyWidth, y: 0 });
-      }
+  //     if (column < start || column > end)
+  //       return;
 
-      var xOffset = lastBody ? column * lastBodyWidth : 0;
+  //     // retroactively fix the first body's position, since width was unknown
+  //     if (i === 1) {
+  //       Body.translate(lastBody, { x: (column + (columns % 2 === 1 ? 1 : -1)) * lastBodyWidth, y: 0 });
+  //     }
 
-      return callback(xx + xOffset + column * columnGap, y, column, row, lastBody, i);
-    });
-  };
+  //     var xOffset = lastBody ? column * lastBodyWidth : 0;
 
-  /**
-   * Creates a composite with a Newton's Cradle setup of bodies and constraints.
-   * @method newtonsCradle
-   * @param {number} xx
-   * @param {number} yy
-   * @param {number} number
-   * @param {number} size
-   * @param {number} length
-   * @return {composite} A new composite newtonsCradle body
-   */
-  Composites.newtonsCradle = function (xx, yy, number, size, length) {
-    var newtonsCradle = Composite.create({ label: 'Newtons Cradle' });
+  //     return callback(xx + xOffset + column * columnGap, y, column, row, lastBody, i);
+  //   });
+  // };
 
-    for (var i = 0; i < number; i++) {
-      var separation = 1.9,
-        circle = Bodies.circle(xx + i * (size * separation), yy + length, size,
-          { inertia: Infinity, restitution: 1, friction: 0, frictionAir: 0.0001, slop: 1 }),
-        constraint = Constraint.create({ pointA: { x: xx + i * (size * separation), y: yy }, bodyB: circle });
+  // /**
+  //  * Creates a composite with a Newton's Cradle setup of bodies and constraints.
+  //  * @method newtonsCradle
+  //  * @param {number} xx
+  //  * @param {number} yy
+  //  * @param {number} number
+  //  * @param {number} size
+  //  * @param {number} length
+  //  * @return {composite} A new composite newtonsCradle body
+  //  */
+  // Composites.newtonsCradle = function (xx, yy, number, size, length) {
+  //   var newtonsCradle = Composite.create({ label: 'Newtons Cradle' });
 
-      Composite.addBody(newtonsCradle, circle);
-      Composite.addConstraint(newtonsCradle, constraint);
-    }
+  //   for (var i = 0; i < number; i++) {
+  //     var separation = 1.9,
+  //       circle = Bodies.circle(xx + i * (size * separation), yy + length, size,
+  //         { inertia: Infinity, restitution: 1, friction: 0, frictionAir: 0.0001, slop: 1 }),
+  //       constraint = Constraint.create({ pointA: { x: xx + i * (size * separation), y: yy }, bodyB: circle });
 
-    return newtonsCradle;
-  };
+  //     Composite.addBody(newtonsCradle, circle);
+  //     Composite.addConstraint(newtonsCradle, constraint);
+  //   }
 
-  /**
-   * Creates a composite with simple car setup of bodies and constraints.
-   * @method car
-   * @param {number} xx
-   * @param {number} yy
-   * @param {number} width
-   * @param {number} height
-   * @param {number} wheelSize
-   * @return {composite} A new composite car body
-   */
-  Composites.car = function (xx, yy, width, height, wheelSize) {
-    var group = Body.nextGroup(true),
-      wheelBase = 20,
-      wheelAOffset = -width * 0.5 + wheelBase,
-      wheelBOffset = width * 0.5 - wheelBase,
-      wheelYOffset = 0;
+  //   return newtonsCradle;
+  // };
 
-    var car = Composite.create({ label: 'Car' }),
-      body = Bodies.rectangle(xx, yy, width, height, {
-        collisionFilter: {
-          group: group
-        },
-        chamfer: {
-          radius: height * 0.5
-        },
-        density: 0.0002
-      });
+  // /**
+  //  * Creates a composite with simple car setup of bodies and constraints.
+  //  * @method car
+  //  * @param {number} xx
+  //  * @param {number} yy
+  //  * @param {number} width
+  //  * @param {number} height
+  //  * @param {number} wheelSize
+  //  * @return {composite} A new composite car body
+  //  */
+  // Composites.car = function (xx, yy, width, height, wheelSize) {
+  //   var group = Body.nextGroup(true),
+  //     wheelBase = 20,
+  //     wheelAOffset = -width * 0.5 + wheelBase,
+  //     wheelBOffset = width * 0.5 - wheelBase,
+  //     wheelYOffset = 0;
 
-    var wheelA = Bodies.circle(xx + wheelAOffset, yy + wheelYOffset, wheelSize, {
-      collisionFilter: {
-        group: group
-      },
-      friction: 0.8
-    });
+  //   var car = Composite.create({ label: 'Car' }),
+  //     body = Bodies.rectangle(xx, yy, width, height, {
+  //       collisionFilter: {
+  //         group: group
+  //       },
+  //       chamfer: {
+  //         radius: height * 0.5
+  //       },
+  //       density: 0.0002
+  //     });
 
-    var wheelB = Bodies.circle(xx + wheelBOffset, yy + wheelYOffset, wheelSize, {
-      collisionFilter: {
-        group: group
-      },
-      friction: 0.8
-    });
+  //   var wheelA = Bodies.circle(xx + wheelAOffset, yy + wheelYOffset, wheelSize, {
+  //     collisionFilter: {
+  //       group: group
+  //     },
+  //     friction: 0.8
+  //   });
 
-    var axelA = Constraint.create({
-      bodyB: body,
-      pointB: { x: wheelAOffset, y: wheelYOffset },
-      bodyA: wheelA,
-      stiffness: 1,
-      length: 0
-    });
+  //   var wheelB = Bodies.circle(xx + wheelBOffset, yy + wheelYOffset, wheelSize, {
+  //     collisionFilter: {
+  //       group: group
+  //     },
+  //     friction: 0.8
+  //   });
 
-    var axelB = Constraint.create({
-      bodyB: body,
-      pointB: { x: wheelBOffset, y: wheelYOffset },
-      bodyA: wheelB,
-      stiffness: 1,
-      length: 0
-    });
+  //   var axelA = Constraint.create({
+  //     bodyB: body,
+  //     pointB: { x: wheelAOffset, y: wheelYOffset },
+  //     bodyA: wheelA,
+  //     stiffness: 1,
+  //     length: 0
+  //   });
 
-    Composite.addBody(car, body);
-    Composite.addBody(car, wheelA);
-    Composite.addBody(car, wheelB);
-    Composite.addConstraint(car, axelA);
-    Composite.addConstraint(car, axelB);
+  //   var axelB = Constraint.create({
+  //     bodyB: body,
+  //     pointB: { x: wheelBOffset, y: wheelYOffset },
+  //     bodyA: wheelB,
+  //     stiffness: 1,
+  //     length: 0
+  //   });
 
-    return car;
-  };
+  //   Composite.addBody(car, body);
+  //   Composite.addBody(car, wheelA);
+  //   Composite.addBody(car, wheelB);
+  //   Composite.addConstraint(car, axelA);
+  //   Composite.addConstraint(car, axelB);
 
-  /**
-   * Creates a simple soft body like object.
-   * @method softBody
-   * @param {number} xx
-   * @param {number} yy
-   * @param {number} columns
-   * @param {number} rows
-   * @param {number} columnGap
-   * @param {number} rowGap
-   * @param {boolean} crossBrace
-   * @param {number} particleRadius
-   * @param {} particleOptions
-   * @param {} constraintOptions
-   * @return {composite} A new composite softBody
-   */
-  Composites.softBody = function (xx, yy, columns, rows, columnGap, rowGap, crossBrace, particleRadius, particleOptions, constraintOptions) {
-    particleOptions = Common.extend({ inertia: Infinity }, particleOptions);
-    constraintOptions = Common.extend({ stiffness: 0.2, render: { type: 'line', anchors: false } }, constraintOptions);
+  //   return car;
+  // }
 
-    var softBody = Composites.stack(xx, yy, columns, rows, columnGap, rowGap, function (x, y) {
-      return Bodies.circle(x, y, particleRadius, particleOptions);
-    });
+  // /**
+  //  * Creates a simple soft body like object.
+  //  * @method softBody
+  //  * @param {number} xx
+  //  * @param {number} yy
+  //  * @param {number} columns
+  //  * @param {number} rows
+  //  * @param {number} columnGap
+  //  * @param {number} rowGap
+  //  * @param {boolean} crossBrace
+  //  * @param {number} particleRadius
+  //  * @param {} particleOptions
+  //  * @param {} constraintOptions
+  //  * @return {composite} A new composite softBody
+  //  */
+  // public static softBody(xx: number, yy: number, columns: number, rows, columnGap, rowGap, crossBrace, particleRadius, particleOptions, constraintOptions) {
+  //   particleOptions = Common.extend({ inertia: Infinity }, particleOptions);
+  //   constraintOptions = Common.extend({ stiffness: 0.2, render: { type: 'line', anchors: false } }, constraintOptions);
 
-    Composites.mesh(softBody, columns, rows, crossBrace, constraintOptions);
+  //   var softBody = Composites.stack(xx, yy, columns, rows, columnGap, rowGap, function (x, y) {
+  //     return Bodies.circle(x, y, particleRadius, particleOptions);
+  //   });
 
-    softBody.label = 'Soft Body';
+  //   Composites.mesh(softBody, columns, rows, crossBrace, constraintOptions);
 
-    return softBody;
-  };
+  //   softBody.label = 'Soft Body';
 
-})();
+  //   return softBody;
+  // }
+
+}

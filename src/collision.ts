@@ -1,6 +1,7 @@
 import { Vector, Contact, Vertex, Vertices, Bounds, Axes } from './geometry';
 import { Body, Filter, Impulse } from './body';
 import { Common, Engine } from './core';
+import { Bodies } from './factory';
 
 /**
 * The `Matter.Pair` module contains methods for creating and manipulating collision pairs.
@@ -581,7 +582,7 @@ class SAT {
 // var Pair = require('./Pair');
 // var Bounds = require('../geometry/Bounds');
 
-class Detector {
+export class Detector {
 
   /**
    * Finds all collisions given a list of pairs.
@@ -591,7 +592,7 @@ class Detector {
    * @return {array} collisions
    */
 
-  public static collisions(broadphasePairs: Pair[], engine: any) {
+  public static collisions(broadphasePairs: Body[][], engine: any) {
     var collisions = [];
     var pairsTable = engine.pairs.table;
 
@@ -693,7 +694,7 @@ export class Grid {
   public detector = Detector.collisions;
   public buckets: { [key: string]: Body[]; } = {};
   public pairs: { [key: string]: any[]; } = {}; // id: [body, body, 1]
-  public pairsList: Pair[] = [];
+  public pairsList: any[] = [];
   public bucketWidth = 48;
   public bucketHeight = 48;
 
@@ -962,16 +963,14 @@ export class Grid {
    */
 
   private static createActivePairsList(grid: Grid) {
-    var pairKeys,
-      pair,
-      pairs = [];
+    const pairs = [];
 
     // grid.pairs is used as a hashmap
-    pairKeys = Common.keys(grid.pairs);
+    var pairKeys = Common.keys(grid.pairs);
 
     // iterate over grid.pairs
     for (var k = 0; k < pairKeys.length; k++) {
-      pair = grid.pairs[pairKeys[k]];
+      const pair = grid.pairs[pairKeys[k]];
 
       // if pair exists in at least one bucket
       // it is a pair that needs further collision testing so push it
@@ -981,7 +980,6 @@ export class Grid {
         delete grid.pairs[pairKeys[k]];
       }
     }
-
     return pairs;
   }
 
