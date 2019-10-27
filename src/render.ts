@@ -2,6 +2,7 @@ import { Common, Events, Mouse, Engine } from './core';
 import { Vector, Vertex, Vertices, Bounds, Axes } from './geometry';
 import { Body, Composite, World } from './body';
 import { Constraint } from './constraint';
+import { Pair, Grid } from './collision';
 
 /**
  * Description
@@ -19,7 +20,7 @@ const createCanvas = (width: number, height: number) => {
   canvas.oncontextmenu = () => false;
   canvas.onselectstart = () => false;
   return canvas;
-};
+}
 
 /**
  * Gets the pixel ratio of the canvas.
@@ -62,25 +63,6 @@ const _getTexture = (imagePath: string) => {
 };
 
 /**
- * Applies the background to the canvas using CSS.
- * @method applyBackground
- * @private
- * @param {render} render
- * @param {string} background
- */
-
-var _applyBackground = function (render: Render, background) {
-  var cssBackground = background;
-
-  if (/(jpg|gif|png)$/.test(background))
-    cssBackground = 'url(' + background + ')';
-
-  render.canvas.style.background = cssBackground;
-  render.canvas.style.backgroundSize = "contain";
-  render.currentBackground = background;
-};
-
-/**
 * The `Matter.Render` module is a simple HTML5 canvas based renderer for visualising instances of `Matter.Engine`.
 * It is intended for development and debugging purposes, but may also be suitable for simple games.
 * It includes a number of drawing options including wireframe, vector with support for sprites and viewports.
@@ -101,20 +83,32 @@ const _cancelAnimationFrame = window.cancelAnimationFrame;
 //     || window.webkitCancelAnimationFrame || window.msCancelAnimationFrame;
 // }
 
+// var defaults = {
+//   controller: Render,
+//   engine: null,
+//   element: null,
+//   canvas: null,
+//   mouse: null,
+//   frameRequestId: null,
+
 export class Render {
-  public controller = null;
+  //public controller = null;
   public engine: Engine;
-  public element: HTMLElement;
-  public canvas: HTMLCanvasElement;
+  // public element: HTMLElement;
   public mouse: Mouse;
+  public canvas: HTMLCanvasElement;
+  context: CanvasRenderingContext2D;//?
+  // background: string;
+  public bounds: Bounds;
   public frameRequestId = -1;
-  public options = {
-    width: 800,
-    height: 600,
+
+  public options: any = {
+    // width: 800,
+    // height: 600,
     pixelRatio: 1,
     background: '#18181d',
     wireframeBackground: '#0f0f13',
-    hasBounds: !!options.bounds,
+    //hasBounds: !!options.bounds,
     enabled: true,
     wireframes: true,
     showSleeping: true,
@@ -134,8 +128,7 @@ export class Render {
     showInternalEdges: false,
     showMousePosition: false
   };
-  context: CanvasRenderingContext2D;//?
-  bounds: Bounds;
+
 
   /**
    * Creates a new renderer. The options parameter is an object that specifies any properties you wish to override the defaults.
@@ -146,76 +139,25 @@ export class Render {
    * @return {render} A new renderer
    */
 
-  public constructor(options: any) {
-    // var defaults = {
-    //   controller: Render,
-    //   engine: null,
-    //   element: null,
-    //   canvas: null,
-    //   mouse: null,
-    //   frameRequestId: null,
-    //   options: {
-    //     width: 800,
-    //     height: 600,
-    //     pixelRatio: 1,
-    //     background: '#18181d',
-    //     wireframeBackground: '#0f0f13',
-    //     hasBounds: !!options.bounds,
-    //     enabled: true,
-    //     wireframes: true,
-    //     showSleeping: true,
-    //     showDebug: false,
-    //     showBroadphase: false,
-    //     showBounds: false,
-    //     showVelocity: false,
-    //     showCollisions: false,
-    //     showSeparations: false,
-    //     showAxes: false,
-    //     showPositions: false,
-    //     showAngleIndicator: false,
-    //     showIds: false,
-    //     showShadows: false,
-    //     showVertexNumbers: false,
-    //     showConvexHulls: false,
-    //     showInternalEdges: false,
-    //     showMousePosition: false
-    //   }
-    // };
+  public constructor(engine: Engine, element: HTMLElement, options: any = {}) {
+    this.engine = engine;
+    this.mouse = engine.setRender(this);
+    Object.assign(this.options, options);
+    this.canvas = createCanvas(element.clientWidth, element.clientHeight);
+    element.appendChild(this.canvas);
     //var render = Common.extend(defaults, options);
-    Object.assign(this, options);
-    if (this.canvas) {
-      this.canvas.width = this.options.width || this.canvas.width;
-      this.canvas.height = this.options.height || this.canvas.height;
-    }
-
-    this.mouse = options.mouse;
-    this.engine = options.engine;
-    this.canvas = this.canvas || _createCanvas(this.options.width, this.options.height);
+    // if (this.canvas) {
+    //   this.canvas.width = this.options.width || this.canvas.width;
+    //   this.canvas.height = this.options.height || this.canvas.height;
+    // }
+    // this.canvas = this.canvas || _createCanvas(this.options.width, this.options.height);
     this.context = this.canvas.getContext('2d')!;
 
-    this.bounds = this.bounds || {
-      min: {
-        x: 0,
-        y: 0
-      },
-      max: {
-        x: this.canvas.width,
-        y: this.canvas.height
-      }
-    };
-
+    this.bounds = new Bounds(0, 0, this.canvas.width, this.canvas.height);
     if (this.options.pixelRatio !== 1) {
       this.setPixelRatio(this.options.pixelRatio);
     }
-
-    if (Object.isElement(this.element)) {
-      this.element.appendChild(this.canvas);
-    } else if (!this.canvas.parentNode) {
-      Common.log('Render.create: options.element was undefined, render.canvas was created but not appended', 'warn');
-    }
-
-    return this;
-  };
+  }
 
   /**
    * Continuously updates the render canvas on the `requestAnimationFrame` event.
@@ -248,16 +190,16 @@ export class Render {
    * @param {number} pixelRatio
    */
 
-  private setPixelRatio(pixelRatio: number) {
+  private setPixelRatio(pixelRatio?: number) {
     var options = this.options;
     var canvas = this.canvas;
 
-    if (pixelRatio === 'auto') {
+    if (pixelRatio === undefined) {
       pixelRatio = _getPixelRatio(canvas);
     }
 
     options.pixelRatio = pixelRatio;
-    canvas.setAttribute('data-pixel-ratio', pixelRatio);
+    canvas.setAttribute('data-pixel-ratio', `${pixelRatio}`);
     canvas.width = options.width * pixelRatio;
     canvas.height = options.height * pixelRatio;
     canvas.style.width = options.width + 'px';
@@ -279,18 +221,13 @@ export class Render {
    */
 
   public lookAt(objects: any[], padding?: Vector, center = true) {
-    center = typeof center !== 'undefined' ? center : true;
     objects = Array.isArray(objects) ? objects : [objects];
-    padding = padding || {
-      x: 0,
-      y: 0
-    };
+    if (padding === undefined) {
+      padding = new Vector();
+    }
 
     // find bounds of all objects
-    var bounds = {
-      min: { x: Infinity, y: Infinity },
-      max: { x: -Infinity, y: -Infinity }
-    };
+    var bounds = new Bounds(Infinity, Infinity, -Infinity, -Infinity);
 
     for (var i = 0; i < objects.length; i += 1) {
       var object = objects[i],
@@ -398,7 +335,9 @@ export class Render {
    * @param {render} this
    */
 
-  private world() {
+  private currentBackground = '';
+
+  public world() {
     const engine = this.engine;
     const world = engine.world;
     const canvas = this.canvas;
@@ -407,18 +346,19 @@ export class Render {
     const allBodies = world.allBodies();
     const allConstraints = world.allConstraints();
     const background = options.wireframes ? options.wireframeBackground : options.background;
-    const bodies = [];
-    const constraints = [];
+    var bodies: Body[] = [];
+    var constraints: Constraint[] = [];
 
     var event = {
       timestamp: engine.timing.timestamp
-    };
+    }
 
     Events.trigger(this, 'beforeRender', event);
 
     // apply background if it has changed
-    if (this.currentBackground !== background)
-      _applyBackground(this, background);
+    if (this.currentBackground !== background) {
+      this.applyBackground(background);
+    }
 
     // clear the canvas with a transparent fill, to allow the canvas background to show
     context.globalCompositeOperation = 'source-in';
@@ -458,12 +398,11 @@ export class Render {
 
       // update mouse
       if (this.mouse) {
-        Mouse.setScale(this.mouse, {
-          x: (this.bounds.max.x - this.bounds.min.x) / this.options.width,
-          y: (this.bounds.max.y - this.bounds.min.y) / this.options.height
-        });
-
-        Mouse.setOffset(this.mouse, this.bounds.min);
+        this.mouse.setScale(new Vector(
+          (this.bounds.max.x - this.bounds.min.x) / this.options.width,
+          (this.bounds.max.y - this.bounds.min.y) / this.options.height
+        ));
+        this.mouse.setOffset(this.bounds.min);
       }
     } else {
       constraints = allConstraints;
@@ -514,7 +453,7 @@ export class Render {
 
     Render.constraints(constraints, context);
 
-    if (options.showBroadphase && engine.broadphase.controller === Grid)
+    if (options.showBroadphase && engine.broadphase instanceof Grid)
       this.grid(engine.broadphase, context);
 
     if (options.showDebug)
@@ -529,6 +468,26 @@ export class Render {
   };
 
   /**
+  * Applies the background to the canvas using CSS.
+  * @method applyBackground
+  * @private
+  * @param {render} render
+  * @param {string} background
+  */
+
+  private applyBackground(background: string) {
+    var cssBackground = background;
+    if (/(jpg|gif|png)$/.test(background))
+      cssBackground = 'url(' + background + ')';
+    this.canvas.style.background = cssBackground;
+    this.canvas.style.backgroundSize = "contain";
+    this.currentBackground = background;
+  }
+
+  private debugString = '';
+  private debugTimestamp = 0;
+
+  /**
    * Description
    * @private
    * @method debug
@@ -539,38 +498,38 @@ export class Render {
     var c = context,
       engine = this.engine,
       world = engine.world,
-      metrics = engine.metrics,
+      // metrics = engine.metrics,
       options = this.options,
       bodies = world.allBodies(),
       space = "    ";
 
-    if (engine.timing.timestamp - (this.debugTimestamp || 0) >= 500) {
+    if (engine.timing.timestamp - (this.debugTimestamp) >= 500) {
       var text = "";
 
-      if (metrics.timing) {
-        text += "fps: " + Math.round(metrics.timing.fps) + space;
-      }
+      // if (metrics.timing) {
+      //   text += "fps: " + Math.round(metrics.timing.fps) + space;
+      // }
 
-      // @if DEBUG
-      if (metrics.extended) {
-        if (metrics.timing) {
-          text += "delta: " + metrics.timing.delta.toFixed(3) + space;
-          text += "correction: " + metrics.timing.correction.toFixed(3) + space;
-        }
+      // // @if DEBUG
+      // if (metrics.extended) {
+      //   if (metrics.timing) {
+      //     text += "delta: " + metrics.timing.delta.toFixed(3) + space;
+      //     text += "correction: " + metrics.timing.correction.toFixed(3) + space;
+      //   }
 
-        text += "bodies: " + bodies.length + space;
+      //   text += "bodies: " + bodies.length + space;
 
-        if (engine.broadphase.controller === Grid)
-          text += "buckets: " + metrics.buckets + space;
+      //   if (engine.broadphase.controller === Grid)
+      //     text += "buckets: " + metrics.buckets + space;
 
-        text += "\n";
+      //   text += "\n";
 
-        text += "collisions: " + metrics.collisions + space;
-        text += "pairs: " + engine.pairs.list.length + space;
-        text += "broad: " + metrics.broadEff + space;
-        text += "mid: " + metrics.midEff + space;
-        text += "narrow: " + metrics.narrowEff + space;
-      }
+      //   text += "collisions: " + metrics.collisions + space;
+      //   text += "pairs: " + engine.pairs.list.length + space;
+      //   text += "broad: " + metrics.broadEff + space;
+      //   text += "mid: " + metrics.midEff + space;
+      //   text += "narrow: " + metrics.narrowEff + space;
+      // }
       // @endif
 
       this.debugString = text;
@@ -614,7 +573,7 @@ export class Render {
       var bodyA = constraint.bodyA,
         bodyB = constraint.bodyB,
         start,
-        end;
+        end = Vector.Null;
 
       if (bodyA) {
         start = Vector.add(bodyA.position, constraint.pointA);
@@ -715,12 +674,13 @@ export class Render {
 
       c.fill();
 
-      c.shadowColor = null;
-      c.shadowOffsetX = null;
-      c.shadowOffsetY = null;
-      c.shadowBlur = null;
+      // FIXME
+      // c.shadowColor = null;
+      // c.shadowOffsetX = null;
+      // c.shadowOffsetY = null;
+      // c.shadowBlur = null;
     }
-  };
+  }
 
   /**
    * Description
@@ -760,20 +720,19 @@ export class Render {
           c.globalAlpha = part.opacity;
         }
 
-        if (part.sprite && part.sprite.texture && !options.wireframes) {
+        if (part.texture && !options.wireframes) {
           // part sprite
-          var sprite = part.sprite,
-            texture = _getTexture(sprite.texture);
+          const texture = _getTexture(part.texture);
 
           c.translate(part.position.x, part.position.y);
           c.rotate(part.angle);
 
           c.drawImage(
             texture,
-            texture.width * -sprite.xOffset * sprite.xScale,
-            texture.height * -sprite.yOffset * sprite.yScale,
-            texture.width * sprite.xScale,
-            texture.height * sprite.yScale
+            texture.width * -part.xOffset * part.xScale,
+            texture.height * -part.yOffset * part.yScale,
+            texture.width * part.xScale,
+            texture.height * part.yScale
           );
 
           // revert translation, hopefully faster than save / restore
@@ -1168,7 +1127,7 @@ export class Render {
         var part = parts[j];
         c.font = "12px Arial";
         c.fillStyle = 'rgba(255,255,255,0.5)';
-        c.fillText(part.id, part.position.x + 10, part.position.y - 10);
+        c.fillText(`${part.id}`, part.position.x + 10, part.position.y - 10);
       }
     }
   }

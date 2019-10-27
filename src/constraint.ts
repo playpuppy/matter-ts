@@ -1,6 +1,6 @@
 import { Common, Events, Mouse } from './core';
 import { Vector, Vertex, Vertices, Bounds, Axes } from './geometry';
-import { Body, Filter, Impulse } from './body';
+import { Body, Filter, Impulse, DefaultCollisionFilter } from './body';
 import { Engine, Sleeping } from './core';
 import { Detector } from './collision';
 
@@ -97,7 +97,7 @@ export class Constraint {
       this.renderType = 'pin';
       this.anchors = false;
     } else if (this.stiffness < 0.9) {
-      this.renderTtype = 'spring';
+      this.renderType = 'spring';
     }
     return this;
   }
@@ -357,7 +357,7 @@ export class MouseConstraint {
   public mouse: Mouse;
   public element: HTMLElement | null;
   public body: Body | null = null;
-  public collisionFilter: Filter = Body.defaultFilter;
+  public collisionFilter: Filter = DefaultCollisionFilter;
 
   /**
    * Creates a new mouse constraint.
@@ -370,9 +370,7 @@ export class MouseConstraint {
    */
 
   public constructor(engine: Engine, options?: any) {
-    //var mouse = (engine ? engine.mouse : null) || (options ? options.mouse : null);
-    var mouse = engine.mouse;
-
+    var mouse = engine.mouse!;
     // if (!mouse) {
     //   if (engine && engine.render && engine.render.canvas) {
     //     mouse = Mouse.create(engine.render.canvas);

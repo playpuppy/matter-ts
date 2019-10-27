@@ -30,14 +30,21 @@ export type Filter = {
   group: number;
 }
 
-export type BodyState = {
-  position: Vector;
-  angle: number;
-  force: Vector;
-  torque: number;
-  positionImpulse: Vector;
-  isStatic: boolean;
-}
+export const DefaultCollisionFilter: Filter = {
+  category: 0x0001,
+  mask: 0xFFFFFFFF,
+  group: 0
+};
+
+
+// export type BodyState = {
+//   position: Vector;
+//   angle: number;
+//   force: Vector;
+//   torque: number;
+//   positionImpulse: Vector;
+//   isStatic: boolean;
+// }
 
 export class Body {
   public id: number; //Common.nextId(),
@@ -68,11 +75,7 @@ export class Body {
   public friction = 0.1;
   public frictionStatic = 0.5;
   public frictionAir = 0.01;
-  public collisionFilter: Filter = {
-    category: 0x0001,
-    mask: 0xFFFFFFFF,
-    group: 0
-  };
+  public collisionFilter = DefaultCollisionFilter;
   public slop = 0.05;
   public timeScale = 1;
   // public render = {
@@ -88,6 +91,7 @@ export class Body {
   // };
   public visible = true;
   public opacity = 1;
+  public texture: string | undefined;
   public xScale = 1;
   public yScale = 1;
   public xOffset = 0;
@@ -98,7 +102,7 @@ export class Body {
   public events = [];
   public bounds = Bounds.Null;
   public chamfer = null;
-  public circleRadius = 0;
+  public circleRadius: number | undefined;
   public positionPrev = new Vector();
   public anglePrev = 0;
   public parent: Body | null = null;
@@ -1036,19 +1040,19 @@ export class Composite {
   //   return object.length === 0 ? null : object[0];
   // };
 
-  /**
-   * Moves the given object(s) from compositeA to compositeB (equal to a remove followed by an add).
-   * @method move
-   * @param {compositeA} compositeA
-   * @param {object[]} objects
-   * @param {compositeB} compositeB
-   * @return {composite} Returns compositeA
-   */
-  public move(objects, compositeB: Composite) {
-    this.remove(objects);
-    compositeB.add(objects);
-    return this;
-  }
+  // /**
+  //  * Moves the given object(s) from compositeA to compositeB (equal to a remove followed by an add).
+  //  * @method move
+  //  * @param {compositeA} compositeA
+  //  * @param {object[]} objects
+  //  * @param {compositeB} compositeB
+  //  * @return {composite} Returns compositeA
+  //  */
+  // public move(objects, compositeB: Composite) {
+  //   this.remove(objects);
+  //   compositeB.add(objects);
+  //   return this;
+  // }
 
   /**
    * Assigns new ids for all objects in the composite, recursively.
@@ -1057,9 +1061,9 @@ export class Composite {
    * @return {composite} Returns composite
    */
   public rebase() {
-    const objects: any[] = this.allBodies()
-      .concat(this.allConstraints())
-      .concat(this.allComposites());
+    const objects: any[] = (this.allBodies() as any[])
+      .concat(this.allConstraints() as any[])
+      .concat(this.allComposites() as any[]);
 
     for (var i = 0; i < objects.length; i++) {
       objects[i].id = Common.nextId();

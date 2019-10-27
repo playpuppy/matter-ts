@@ -1,4 +1,5 @@
 import { Common } from './core';
+import { Body } from './body';
 
 /**
 * The `Matter.Vector` module contains methods for creating and manipulating vectors.
@@ -244,14 +245,14 @@ export type Contact = {
 
 export class Vertex extends Vector {
   public index: number;
-  public body?: Body;
+  public body: Body;
   public isInternal: boolean;
   public contact: Contact;
 
   constructor(x: number, y: number, index: number, body?: Body) {
     super(x, y);
     this.index = index;
-    this.body = body;
+    this.body = body === undefined ? Body.None : body;
     this.isInternal = false;
     this.contact = {
       vertex: this,
@@ -812,7 +813,7 @@ export class Axes {
    */
 
   public static fromVertices(vertices: Vertex[]): Vector[] {
-    var axes = {};
+    var axes: { [key: string]: Vector; } = {};
     // find the unique axes, using edge normal gradients
     for (var i = 0; i < vertices.length; i++) {
       var j = (i + 1) % vertices.length;

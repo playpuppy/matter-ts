@@ -1,14 +1,17 @@
 import { Vector, Bounds } from "./geometry";
 import { Body, World } from "./body";
-import { Constraint } from "./constraint";
-import { Pair, Pairs, Resolver } from "./collision";
+import { Constraint, MouseConstraint } from "./constraint";
+import { Pair, Pairs, Resolver, Grid } from "./collision";
+import { Render } from "./render";
 
 var _nextId = 0;
 var _seed = 0;
 var _nowStartTime = +(new Date());
 
 export class Common {
-
+  public static now() {
+    return +(new Date()) - _nowStartTime;
+  }
   //   /**
   //  * Extends the object in the first argument using the object in the second argument.
   //  * @method extend
@@ -88,7 +91,7 @@ export class Common {
    * @return {array} Array of the objects property values
    */
 
-  public static values(obj): any[] {
+  public static values(obj: any): any[] {
     var values = [];
 
     if (Object.keys) {
@@ -147,6 +150,7 @@ export class Common {
    * @param {object} needle
    * @return {number} The position of needle in haystack, otherwise -1.
    */
+
   public static indexOf(haystack: any, needle: any) {
     if (haystack.indexOf)
       return haystack.indexOf(needle);
@@ -273,7 +277,8 @@ export class Mouse {
     //   Common.log('Mouse.create: element was undefined, defaulting to document.body', 'warn');
     // }
     this.element = element;
-    this.pixelRatio = parseInt(element.getAttribute('data-pixel-ratio'), 10) || 1;
+    this.pixelRatio = element.getAttribute('data-pixel-ratio') ?
+      parseInt(element.getAttribute('data-pixel-ratio')!, 10) : 1;
 
     this.mousemove = function (event) {
       var position = Mouse.getRelativeMousePosition(event, this.element, this.pixelRatio),
@@ -429,8 +434,8 @@ export class Mouse {
     }
 
     return new Vector(
-      x / (element.clientWidth / (element.width || element.clientWidth) * pixelRatio),
-      y / (element.clientHeight / (element.height || element.clientHeight) * pixelRatio)
+      x / (element.clientWidth / ((element as any)['width'] || element.clientWidth) * pixelRatio),
+      y / (element.clientHeight / ((element as any)['height'] || element.clientHeight) * pixelRatio)
     );
   }
 }
@@ -475,12 +480,12 @@ export class Sleeping {
       body.motion = _minBias * minMotion + (1 - _minBias) * maxMotion;
 
       if (body.sleepThreshold > 0 && body.motion < _motionSleepThreshold * timeFactor) {
-        body.sleepCounter += 1;
+        (body as any)['sleepCounter'] += 1;
 
-        if (body.sleepCounter >= body.sleepThreshold)
+        if ((body as any)['sleepCounter'] >= body.sleepThreshold)
           Sleeping.set(body, true);
-      } else if (body.sleepCounter > 0) {
-        body.sleepCounter -= 1;
+      } else if ((body as any)['sleepCounter'] > 0) {
+        (body as any)['sleepCounter'] -= 1;
       }
     }
   }
@@ -503,8 +508,8 @@ export class Sleeping {
         continue;
 
       var collision = pair.collision,
-        bodyA = collision.bodyA.parent,
-        bodyB = collision.bodyB.parent;
+        bodyA = collision.bodyA.parent!,
+        bodyB = collision.bodyB.parent!;
 
       // don't wake if at least one body is static
       if ((bodyA.isSleeping && bodyB.isSleeping) || bodyA.isStatic || bodyB.isStatic)
@@ -533,7 +538,7 @@ export class Sleeping {
 
     if (isSleeping) {
       body.isSleeping = true;
-      body.sleepCounter = body.sleepThreshold;
+      (body as any)['sleepCounter'] = body.sleepThreshold;
 
       body.positionImpulse.x = 0;
       body.positionImpulse.y = 0;
@@ -551,7 +556,7 @@ export class Sleeping {
       }
     } else {
       body.isSleeping = false;
-      body.sleepCounter = 0;
+      (body as any)['sleepCounter'] = 0;
 
       if (wasSleeping) {
         Events.trigger(body, 'sleepEnd');
@@ -571,15 +576,28 @@ export class Sleeping {
 * @class Engine
 */
 
+export type Timing = {
+  timestamp: number;
+  timeScale: number;
+}
+
+
 export class Engine {
+  public world: World;
+  public pairs: Pairs;
+  public broadphase: Grid;
+  public render: Render | undefined;
+  public mouse: Mouse | undefined;
+  public mouseConstraint: MouseConstraint | undefined;
   public positionIterations = 6;
   public velocityIterations = 4;
   public constraintIterations = 2;
   public enableSleeping = false;
   public events = [];
-  public timing: any;
-  public world: World;
-  public broadphase: any;
+  public timing: Timing = {
+    timestamp: 0,
+    timeScale: 1
+  };
 
   /**
   * Creates a new engine. The options parameter is an object that specifies any properties you wish to override the defaults.
@@ -650,21 +668,29 @@ export class Engine {
   //   return engine;
   // };
 
-  public constructor() {
+  public constructor(world: World) {
+    this.world = world;
     this.timing = {
       timestamp: 0,
       timeScale: 1
     };
-    var broadphase = {
-      controller: Grid
-    };
-    this.world = new World();
-    this.pairs = Pairs.create();
-    this.broadphase = broadphase.controller.create(broadphase);
+    this.pairs = new Pairs();
+    this.broadphase = new Grid();
+    //    this.broadphase = broadphase.controller.create(broadphase);
 
     // engine.world = options.world || World.create(engine.world);
     // engine.pairs = Pairs.create();
     // engine.metrics = engine.metrics || { extended: false };
+  }
+
+  public setRender(render: Render) {
+    this.render = render;
+    this.mouse = new Mouse(render.canvas);
+    this.mouseConstraint = new MouseConstraint(this, {
+      stiffness: 0.2,
+    });
+    this.world.addConstraint(this.mouseConstraint.constraint);
+    return this.mouse;
   }
 
   /**
@@ -736,7 +762,7 @@ export class Engine {
     const world = this.world;
     const timing = this.timing;
     const broadphase = this.broadphase;
-    const broadphasePairs = [];
+    var broadphasePairs: any[];
 
     // increment timestamp
     timing.timestamp += delta * timing.timeScale;
@@ -799,8 +825,8 @@ export class Engine {
     // update collision pairs
     var pairs = this.pairs,
       timestamp = timing.timestamp;
-    Pairs.update(pairs, collisions, timestamp);
-    Pairs.removeOld(pairs, timestamp);
+    pairs.update(collisions, timestamp);
+    pairs.removeOld(timestamp);
 
     // wake up bodies involved in collisions
     if (this.enableSleeping)
@@ -848,48 +874,48 @@ export class Engine {
     Events.trigger(this, 'afterUpdate', event);
   }
 
-  /**
-   * Merges two engines by keeping the configuration of `engineA` but replacing the world with the one from `engineB`.
-   * @method merge
-   * @param {engine} engineA
-   * @param {engine} engineB
-   */
+  // /**
+  //  * Merges two engines by keeping the configuration of `engineA` but replacing the world with the one from `engineB`.
+  //  * @method merge
+  //  * @param {engine} engineA
+  //  * @param {engine} engineB
+  //  */
 
-  Engine.merge = function (engineA, engineB) {
-    Common.extend(engineA, engineB);
+  // Engine.merge = function (engineA, engineB) {
+  //   Common.extend(engineA, engineB);
 
-    if (engineB.world) {
-      engineA.world = engineB.world;
+  //   if (engineB.world) {
+  //     engineA.world = engineB.world;
 
-      Engine.clear(engineA);
+  //     Engine.clear(engineA);
 
-      var bodies = Composite.allBodies(engineA.world);
+  //     var bodies = Composite.allBodies(engineA.world);
 
-      for (var i = 0; i < bodies.length; i++) {
-        var body = bodies[i];
-        Sleeping.set(body, false);
-        body.id = Common.nextId();
-      }
-    }
-  };
+  //     for (var i = 0; i < bodies.length; i++) {
+  //       var body = bodies[i];
+  //       Sleeping.set(body, false);
+  //       body.id = Common.nextId();
+  //     }
+  //   }
+  // };
 
   /**
    * Clears the engine including the world, pairs and broadphase.
    * @method clear
    * @param {engine} this
    */
+
   public clear() {
-    var world = this.world;
+    const world = this.world;
+    this.pairs.clear();
 
-    Pairs.clear(this.pairs);
-
-    var broadphase = this.broadphase;
+    const broadphase = this.broadphase;
     if (broadphase.controller) {
       var bodies = world.allBodies();
       broadphase.controller.clear(broadphase);
       broadphase.controller.update(broadphase, bodies, this, true);
     }
-  };
+  }
 
   /**
    * Zeroes the `body.force` and `body.torque` force buffers.
@@ -979,6 +1005,7 @@ var _requestAnimationFrame = (callback: any) => {
   _frameTimeout = setTimeout(function () {
     callback(Common.now());
   }, 1000 / 60);
+  return 0;
 };
 
 var _cancelAnimationFrame = (handle: number) => {
@@ -998,10 +1025,10 @@ export class Runner {
   public deltaSampleSize = 60;
   public counterTimestamp = 0;
   public frameCounter = 0;
-  public deltaHistory = [];
-  public timePrev = null;
+  public deltaHistory: number[] = [];
+  public timePrev = 0;
   public timeScalePrev = 1;
-  public frameRequestId = null;
+  public frameRequestId = -1;
   public isFixed = false;
   public enabled = true;
   delta: number;
@@ -1013,6 +1040,7 @@ export class Runner {
    * @method create
    * @param {} options
    */
+
   public constructor(options?: any) {
     if (options !== undefined) {
       Object.assign(this, options);
@@ -1041,13 +1069,13 @@ export class Runner {
     //   runner = Runner.create();
     // }
 
-    (function render(time) {
+    (function render(time: number) {
       runner.frameRequestId = _requestAnimationFrame(render);
 
       if (time && runner.enabled) {
         Runner.tick(runner, engine, time);
       }
-    })();
+    })(0);
 
     return runner;
   };
@@ -1122,25 +1150,22 @@ export class Runner {
     Events.trigger(engine, 'tick', event); // @deprecated
 
     // if world has been modified, clear the render scene graph
-    if (engine.world.isModified
-      && engine.render
-      && engine.render.controller
-      && engine.render.controller.clear) {
-      engine.render.controller.clear(engine.render); // @deprecated
-    }
+    // if (engine.world.isModified && engine.render) {
+    //   engine.render.clear();
+    // }
 
     // update
     Events.trigger(runner, 'beforeUpdate', event);
-    Engine.update(engine, delta, correction);
+    engine.update(delta, correction);
     Events.trigger(runner, 'afterUpdate', event);
 
     // render
     // @deprecated
-    if (engine.render && engine.render.controller) {
+    if (engine.render) {
       Events.trigger(runner, 'beforeRender', event);
       Events.trigger(engine, 'beforeRender', event); // @deprecated
 
-      engine.render.controller.world(engine.render);
+      engine.render.world();
 
       Events.trigger(runner, 'afterRender', event);
       Events.trigger(engine, 'afterRender', event); // @deprecated

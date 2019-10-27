@@ -149,6 +149,7 @@ export class Pair {
 const _pairMaxIdleLife = 1000;
 
 export class Pairs {
+
   public table: { [key: string]: Pair; } = {};
   public list: Pair[] = [];
   public collisionStart: Pair[] = [];
