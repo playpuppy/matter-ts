@@ -37,15 +37,16 @@ const render = new Render(engine, document.body);
 //console.log(Bodies.rectangle(600, 100, 60, 60, { frictionAir: 0.1 }));
 world.add([
   // falling blocks
-  Bodies.rectangle(200, 100, 60, 60, { frictionAir: 0.001 }),
-  Bodies.rectangle(400, 100, 60, 60, { frictionAir: 0.05 }),
-  Bodies.rectangle(600, 100, 60, 60, { frictionAir: 0.1 }),
+  Bodies.rectangle(200, 100, 60, 60, { world, frictionAir: 0.001 }),
+  Bodies.rectangle(400, 100, 60, 60, { world, frictionAir: 0.05 }),
+  Bodies.rectangle(600, 100, 60, 60, { world, frictionAir: 0.1 }),
 
   // walls
-  Bodies.rectangle(400, 0, 800, 50, { isStatic: true }),
-  Bodies.rectangle(400, 600, 800, 50, { isStatic: true }),
-  Bodies.rectangle(800, 300, 50, 600, { isStatic: true }),
-  Bodies.rectangle(0, 300, 50, 600, { isStatic: true })
+  Bodies.rectangle(400, 0, 800, 50, { world, isStatic: true }),
+  Bodies.rectangle(400, 600, 800, 50, { world, isStatic: true }),
+  Bodies.rectangle(800, 300, 50, 600, { world, isStatic: true }),
+  Bodies.rectangle(0, 300, 50, 600, { world, isStatic: true }),
+  Bodies.rectangle(400, 300, 100, 100, { world, isStatic: true })
 ]);
 
 render.run();

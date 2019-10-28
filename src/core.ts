@@ -73,7 +73,7 @@ export class Sleeping {
       if (!pair.isActive)
         continue;
 
-      var collision = pair.collision,
+      var collision = pair.collision!,
         bodyA = collision.bodyA.parent!,
         bodyB = collision.bodyB.parent!;
 
@@ -241,11 +241,6 @@ export class Engine {
     };
     this.pairs = new Pairs();
     this.broadphase = new Grid();
-    //    this.broadphase = broadphase.controller.create(broadphase);
-
-    // engine.world = options.world || World.create(engine.world);
-    // engine.pairs = Pairs.create();
-    // engine.metrics = engine.metrics || { extended: false };
   }
 
   public setRender(render: Render) {
@@ -327,7 +322,6 @@ export class Engine {
     const world = this.world;
     const timing = this.timing;
     const broadphase = this.broadphase;
-    var broadphasePairs: any[];
 
     // increment timestamp
     timing.timestamp += delta * timing.timeScale;
@@ -366,18 +360,18 @@ export class Engine {
     Constraint.postSolveAll(allBodies);
 
     // broadphase pass: find potential collision pairs
-    if (broadphase.controller) {
-      // if world is dirty, we must flush the whole grid
-      if (world.isModified)
-        broadphase.controller.clear(broadphase);
+    // if (broadphase) {
+    // if world is dirty, we must flush the whole grid
+    if (world.isModified)
+      broadphase.clear();
 
-      // update the grid buckets based on current bodies
-      broadphase.controller.update(broadphase, allBodies, world, world.isModified);
-      broadphasePairs = broadphase.pairsList;
-    } else {
-      // if no broadphase set, we just pass all bodies
-      broadphasePairs = allBodies;
-    }
+    // update the grid buckets based on current bodies
+    broadphase.update(allBodies, world, world.isModified);
+    const broadphasePairs = broadphase.pairsList;
+    // } else {
+    //   // if no broadphase set, we just pass all bodies
+    //   // broadphasePairs = allBodies;
+    // }
 
     // clear all composite modified flags
     if (world.isModified) {
@@ -385,17 +379,22 @@ export class Engine {
     }
 
     // narrowphase pass: find actual collisions, then create or update collision pairs
-    var collisions = broadphase.detector(broadphasePairs, this);
+    const collisions = broadphase.detector(broadphasePairs, this);
 
     // update collision pairs
-    var pairs = this.pairs,
-      timestamp = timing.timestamp;
-    pairs.update(collisions, timestamp);
+    const pairs = this.pairs;
+    const timestamp = timing.timestamp;
+    pairs.update2(collisions, timestamp);
+    if (collisions.length > 0) {
+      console.log(collisions);
+      console.log(pairs);
+    }
     pairs.removeOld(timestamp);
 
     // wake up bodies involved in collisions
     if (this.enableSleeping)
       Sleeping.afterCollisions(pairs.list, timing.timeScale);
+
 
     // trigger collision events
     if (pairs.collisionStart.length > 0)
@@ -473,12 +472,11 @@ export class Engine {
   public clear() {
     const world = this.world;
     this.pairs.clear();
-
     const broadphase = this.broadphase;
-    if (broadphase.controller) {
+    if (broadphase) {
       var bodies = world.allBodies();
-      broadphase.controller.clear(broadphase);
-      broadphase.controller.update(broadphase, bodies, world, true);
+      broadphase.clear();
+      broadphase.update(bodies, world, true);
     }
   }
 

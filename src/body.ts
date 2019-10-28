@@ -36,7 +36,6 @@ export const DefaultCollisionFilter: Filter = {
   group: 0
 };
 
-
 // export type BodyState = {
 //   position: Vector;
 //   angle: number;
@@ -96,11 +95,11 @@ export class Body {
   public yScale = 1;
   public xOffset = 0;
   public yOffset = 0;
-  public fillStyle = 'ffffff';
-  public strokeStyle = 'fffff';
+  public fillStyle = '';
+  public strokeStyle = '';
   public lineWidth = 0;
   public events = [];
-  public bounds = Bounds.Null;
+  public bounds: Bounds;
   public chamfer = null;
   public circleRadius: number | undefined;
   public positionPrev = new Vector();
@@ -116,7 +115,7 @@ export class Body {
 
   public constructor(options: any = {}) {
     Object.assign(this, options);
-    this.id = options.world ? options.world.nextId() : Common.nextId();
+    this.id = options.world ? options.world.newId() : Common.nextId();
     this.vertices = options['vertices'] || Vertices.fromPath([0, 0, 40, 0, 40, 40, 0, 40]);
     // // init required properties (order is important)
     // Body.set(body, {
@@ -135,6 +134,7 @@ export class Body {
     //   isSleeping: body.isSleeping,
     //   parent: body.parent || body
     // });
+    this.parent = this;
 
     Vertices.rotate(this.vertices, this.angle, this.position);
     Axes.rotate(this.axes, this.angle);
@@ -149,19 +149,21 @@ export class Body {
     // });
     this.setAngle(this.angle);
     this.setMass(this.mass);
+    this.setInertia(this.inertia);
 
     // // render properties
-    if (!this.fillStyle) {
-      this.fillStyle = '#2e2b44';
+    if (this.fillStyle === '') {
+      this.fillStyle =
+        options.world ? Common.choose(options.world.colors) : '#2e2b44';
     }
-    if (!this.strokeStyle) {
-      this.strokeStyle = '#000';
+    if (this.strokeStyle === '') {
+      this.strokeStyle = this.fillStyle;
     }
     this.xOffset += -(this.bounds.min.x - this.position.x) / (this.bounds.max.x - this.bounds.min.x);
     this.yOffset += -(this.bounds.min.y - this.position.y) / (this.bounds.max.y - this.bounds.min.y);
   }
 
-  public static None: Body = new Body();
+  //public static None: Body = new Body();
 
   /**
  * Sets the body as static, including isStatic flag and setting mass and inertia to Infinity.
@@ -810,6 +812,7 @@ export class Constraint {
    * @param {constraint} constraint
    * @param {number} timeScale
    */
+
   static solve(constraint: Constraint, timeScale: number) {
     const bodyA = constraint.bodyA;
     const bodyB = constraint.bodyB;
@@ -1023,11 +1026,11 @@ export class Composite {
    * @return {composite} A new composite
    */
 
-  public constructor(options?: any) {
+  public constructor(options: any = {}) {
     if (options) {
       Object.assign(this, options)
     }
-    this.id = Common.nextId();
+    this.id = options.world ? options.world.newId() : Common.nextId();
     this.parent = undefined;
   }
 
@@ -1072,9 +1075,6 @@ export class Composite {
     //Events.trigger(this, 'beforeAdd', { object: object });
     for (var i = 0; i < objects.length; i++) {
       var obj = objects[i];
-      console.log(i)
-      console.log(obj)
-
       if (obj instanceof Body) {
         this.addBody(obj);
       }
@@ -1525,9 +1525,14 @@ export class Composite {
 
 export class World extends Composite {
   public gravity: Vector = new Vector(0, 0);
-  public bounds: Bounds = Bounds.Null;
-  public colors: string[] = chooseColorScheme('pop');
-  public constructor() {
-    super();
+  public bounds: Bounds = new Bounds(0, 0, 1000, 1000);
+  public colors: string[];
+  public uniqueId = 0;
+  public constructor(options: any = {}) {
+    super(options);
+    this.colors = chooseColorScheme(options.colorScheme || 'pop');
+  }
+  public newId() {
+    return this.uniqueId++;
   }
 }

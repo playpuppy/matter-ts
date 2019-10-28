@@ -2,7 +2,6 @@ import { Common } from './commons';
 import { Vector, Contact, Vertex, Vertices, Bounds } from './geometry';
 import { Body, Filter, World } from './body';
 import { Bodies } from './factory';
-//import { Common, Engine } from './core';
 
 /**
 * The `Matter.Pair` module contains methods for creating and manipulating collision pairs.
@@ -27,7 +26,7 @@ export type Collision = {
   penetration: Vector; //?
 }
 
-const CollisionNull: Collision = {} as Collision;
+//const CollisionNull: Collision = {} as Collision;
 
 export class Pair {
   public id: string;
@@ -40,7 +39,7 @@ export class Pair {
   public isSensor: boolean;
   public timeCreated: number;
   public timeUpdated: number;
-  public collision: Collision = CollisionNull;
+  public collision: Collision | undefined; // = CollisionNull;
   public inverseMass = 0;
   public friction = 0;
   public frictionStatic = 0;
@@ -92,10 +91,10 @@ export class Pair {
     this.collision = collision;
 
     if (collision.collided) {
-      var supports = collision.supports,
-        activeContacts = this.activeContacts,
-        parentA = collision.parentA,
-        parentB = collision.parentB;
+      const supports = collision.supports;
+      const activeContacts = this.activeContacts;
+      const parentA = collision.parentA;
+      const parentB = collision.parentB;
 
       this.inverseMass = parentA.inverseMass + parentB.inverseMass;
       this.friction = Math.min(parentA.friction, parentB.friction);
@@ -178,16 +177,12 @@ export class Pairs {
    * @param {number} timestamp
    */
 
-  public update(collisions: Collision[], timestamp: number) {
+  public update2(collisions: Collision[], timestamp: number) {
     const pairsList = this.list;
     const pairsTable = this.table;
     const collisionStart = this.collisionStart;
     const collisionEnd = this.collisionEnd;
     const collisionActive = this.collisionActive;
-    // collision,
-    // pairId,
-    // pair,
-    // i;
 
     // clear collision state arrays, but maintain old reference
     collisionStart.length = 0;
@@ -203,7 +198,7 @@ export class Pairs {
 
       if (collision.collided) {
         const pairId = Pair.id(collision.bodyA, collision.bodyB);
-        const pair: Pair = pairsTable[pairId];
+        const pair = pairsTable[pairId];
 
         if (pair) {
           // pair already exists (but may or may not be active)
@@ -238,7 +233,7 @@ export class Pairs {
         collisionEnd.push(pair);
       }
     }
-  };
+  }
 
   /**
    * Finds and removes pairs that have been inactive for a set amount of time.
@@ -260,7 +255,7 @@ export class Pairs {
       const collision = pair.collision;
 
       // never remove sleeping pairs
-      if (collision.bodyA.isSleeping || collision.bodyB.isSleeping) {
+      if (collision!.bodyA.isSleeping || collision!.bodyB.isSleeping) {
         pair.timeUpdated = timestamp;
         continue;
       }
@@ -326,7 +321,7 @@ class SAT {
    * @return {collision} collision
    */
 
-  public static collides(bodyA: Body, bodyB: Body, previousCollision?: Collision) {
+  public static collides(bodyA: Body, bodyB: Body, previousCollision: Collision | null) {
     // var overlapAB: Overlap;
     // var overlapBA: Overlap;
     // var minOverlap: Overlap;
@@ -447,6 +442,8 @@ class SAT {
     // account for the edge case of overlapping but no vertex containment
     if (supports.length < 1)
       collision.supports = [verticesB[0]];
+
+    collision.supports = supports;
 
     return collision;
   }
@@ -594,8 +591,8 @@ export class Detector {
    * @return {array} collisions
    */
 
-  public static collisions(broadphasePairs: Body[][], engine: any) {
-    var collisions = [];
+  public static collisions(broadphasePairs: [Body, Body, number][], engine: any) {
+    var collisions: Collision[] = [];
     var pairsTable = engine.pairs.table;
 
     // @if DEBUG
@@ -626,9 +623,9 @@ export class Detector {
 
             if ((partA === bodyA && partB === bodyB) || Bounds.overlaps(partA.bounds, partB.bounds)) {
               // find a previous collision we could reuse
-              var pairId = Pair.id(partA, partB),
-                pair = pairsTable[pairId],
-                previousCollision;
+              const pairId = Pair.id(partA, partB);
+              const pair = pairsTable[pairId];
+              var previousCollision: Collision | null;
 
               if (pair && pair.isActive) {
                 previousCollision = pair.collision;
@@ -638,19 +635,18 @@ export class Detector {
 
               // narrow phase
               var collision = SAT.collides(partA, partB, previousCollision);
-
               // @if DEBUG
               //metrics.narrowphaseTests += 1;
-              if (collision.reused)
-                //  metrics.narrowReuseCount += 1;
-                // @endif
+              //if (collision.reused)
+              //  metrics.narrowReuseCount += 1;
+              // @endif
 
-                if (collision.collided) {
-                  collisions.push(collision);
-                  // @if DEBUG
-                  // metrics.narrowDetections += 1;
-                  // @endif
-                }
+              if (collision.collided) {
+                collisions.push(collision);
+                // @if DEBUG
+                // metrics.narrowDetections += 1;
+                // @endif
+              }
             }
           }
         }
@@ -691,12 +687,11 @@ type Region = {
 }
 
 export class Grid {
-
-  public controller = Grid;
+  // public controller = Grid;
   public readonly detector = Detector.collisions;
   public buckets: { [key: string]: Body[]; } = {};
-  public pairs: { [key: string]: any[]; } = {}; // id: [body, body, 1]
-  public pairsList: any[] = [];
+  public pairs: { [key: string]: [Body, Body, number]; } = {}; // id: [body, body, 1]
+  public pairsList: [Body, Body, number][] = [];
   public bucketWidth = 48;
   public bucketHeight = 48;
 
@@ -716,14 +711,14 @@ export class Grid {
   /**
    * Updates the grid.
    * @method update
-   * @param {grid} grid
+   * @param {grid} this
    * @param {body[]} bodies
    * @param {engine} engine
    * @param {boolean} forceUpdate
    */
 
-  public static update(grid: Grid, bodies: Body[], world: World, forceUpdate: boolean) {
-    const buckets = grid.buckets;
+  public update(bodies: Body[], world: World, forceUpdate: boolean) {
+    const buckets = this.buckets;
     var gridChanged = false;
 
     // @if DEBUG
@@ -742,7 +737,7 @@ export class Grid {
         || body.bounds.max.y < world.bounds.min.y || body.bounds.min.y > world.bounds.max.y)
         continue;
 
-      var newRegion = Grid.getRegion(grid, body);
+      var newRegion = Grid.getRegion(this, body);
       var bodyRegion = (body as any)['region'] as Region;
 
       // if the body has changed grid region
@@ -776,7 +771,7 @@ export class Grid {
             if (!isInsideNewRegion && isInsideOldRegion) {
               if (isInsideOldRegion) {
                 if (bucket)
-                  Grid.bucketRemoveBody(grid, bucket, body);
+                  Grid.bucketRemoveBody(this, bucket, body);
               }
             }
 
@@ -784,7 +779,7 @@ export class Grid {
             if (bodyRegion === newRegion || (isInsideNewRegion && !isInsideOldRegion) || forceUpdate) {
               if (!bucket)
                 bucket = Grid.createBucket(buckets, bucketId);
-              Grid.bucketAddBody(grid, bucket, body);
+              Grid.bucketAddBody(this, bucket, body);
             }
           }
         }
@@ -799,18 +794,18 @@ export class Grid {
 
     // update pairs list only if pairs changed (i.e. a body changed region)
     if (gridChanged)
-      grid.pairsList = Grid.createActivePairsList(grid);
+      this.pairsList = Grid.createActivePairsList(this);
   }
 
   /**
    * Clears the grid.
    * @method clear
-   * @param {grid} grid
+   * @param {grid} this
    */
-  public static clear(grid: Grid) {
-    grid.buckets = {};
-    grid.pairs = {};
-    grid.pairsList = [];
+  public clear() {
+    this.buckets = {};
+    this.pairs = {};
+    this.pairsList = [];
   }
 
   /**
@@ -859,7 +854,7 @@ export class Grid {
    * @return {} region
    */
 
-  private static createRegion(startCol: number, endCol: number, startRow: number, endRow: number) {
+  private static createRegion(startCol: number, endCol: number, startRow: number, endRow: number): Region {
     return {
       id: startCol + ',' + endCol + ',' + startRow + ',' + endRow,
       startCol: startCol,
@@ -964,7 +959,7 @@ export class Grid {
    */
 
   private static createActivePairsList(grid: Grid) {
-    const pairs = [];
+    const pairs: [Body, Body, number][] = [];
 
     // grid.pairs is used as a hashmap
     var pairKeys = Common.keys(grid.pairs);
@@ -1015,7 +1010,7 @@ export class Query {
           var part = bodyA.parts[j];
 
           if (Bounds.overlaps(part.bounds, body.bounds)) {
-            var collision = SAT.collides(part, body);
+            var collision = SAT.collides(part, body, null);
 
             if (collision.collided) {
               collisions.push(collision);
@@ -1100,7 +1095,6 @@ export class Query {
         }
       }
     }
-
     return result;
   }
 
@@ -1134,8 +1128,8 @@ export class Resolver {
         continue;
 
       const activeCount = pair.activeContacts.length;
-      pair.collision.parentA.totalContacts += activeCount;
-      pair.collision.parentB.totalContacts += activeCount;
+      pair.collision!.parentA.totalContacts += activeCount;
+      pair.collision!.parentB.totalContacts += activeCount;
     }
   }
 
@@ -1179,7 +1173,7 @@ export class Resolver {
       if (!pair.isActive || pair.isSensor)
         continue;
 
-      const collision = pair.collision as Collision;
+      const collision = pair.collision!;
       const bodyA = collision.parentA;
       const bodyB = collision.parentB;
       const normal = collision.normal;
@@ -1287,7 +1281,7 @@ export class Resolver {
         continue;
 
       const contacts = pair.activeContacts;
-      const collision = pair.collision as Collision;
+      const collision = pair.collision!;
       const bodyA = collision.parentA;
       const bodyB = collision.parentB;
       const normal = collision.normal;
