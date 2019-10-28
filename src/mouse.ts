@@ -51,9 +51,9 @@ export class Mouse {
     this.pixelRatio = element.getAttribute('data-pixel-ratio') ?
       parseInt(element.getAttribute('data-pixel-ratio')!, 10) : 1;
 
-    this.mousemove = function (event) {
-      var position = Mouse.getRelativeMousePosition(event, this.element, this.pixelRatio),
-        touches = event.changedTouches;
+    this.mousemove = (event) => {
+      const position = Mouse.getRelativeMousePosition(event, this.element, this.pixelRatio);
+      const touches = event.changedTouches;
 
       if (touches) {
         this.button = 0;
@@ -67,9 +67,9 @@ export class Mouse {
       this.sourceEvents.mousemove = event;
     };
 
-    this.mousedown = function (event) {
-      var position = Mouse.getRelativeMousePosition(event, this.element, this.pixelRatio),
-        touches = event.changedTouches;
+    this.mousedown = (event) => {
+      const position = Mouse.getRelativeMousePosition(event, this.element, this.pixelRatio);
+      const touches = event.changedTouches;
 
       if (touches) {
         this.button = 0;
@@ -87,7 +87,7 @@ export class Mouse {
       this.sourceEvents.mousedown = event;
     };
 
-    this.mouseup = function (event) {
+    this.mouseup = (event) => {
       const position = Mouse.getRelativeMousePosition(event, this.element, this.pixelRatio);
       const touches = event.changedTouches;
 
@@ -105,15 +105,12 @@ export class Mouse {
       this.sourceEvents.mouseup = event;
     };
 
-    this.mousewheel = function (event) {
+    this.mousewheel = (event) => {
       this.wheelDelta = Math.max(-1, Math.min(1, event.wheelDelta || -event.detail));
       event.preventDefault();
     };
-
     this.setElement(this.element);
-
-    return this;
-  };
+  }
 
   /**
    * Sets the element the mouse is bound to (and relative to).

@@ -1,6 +1,6 @@
 import { Common } from './commons';
 import { Vector, Vertex, Vertices, Bounds, Axes } from './geometry';
-//import { Constraint, MouseConstraint } from './constraint';
+import { chooseColorScheme } from './color';
 
 const _inertiaScale = 4;
 const _nextCollidingGroupId = 1;
@@ -105,7 +105,7 @@ export class Body {
   public circleRadius: number | undefined;
   public positionPrev = new Vector();
   public anglePrev = 0;
-  public parent: Body | null = null;
+  public parent: Body | undefined;
   public axes: Vector[] = [];
   public area = 0;
   public mass = 0;
@@ -114,18 +114,20 @@ export class Body {
   public inverseInertia: number = 0;
   public inverseMass: number = 0;
 
-  public constructor(options?: any) {
-    options = options || {};
-    this.id = Common.nextId();
+  public constructor(options: any = {}) {
+    Object.assign(this, options);
+    this.id = options.world ? options.world.nextId() : Common.nextId();
     this.vertices = options['vertices'] || Vertices.fromPath([0, 0, 40, 0, 40, 40, 0, 40]);
-    this.bounds = options['bounds'] || Bounds.create(this.vertices);
-    this.positionPrev = options['positionPrev'] || Vector.clone(this.position);
     // // init required properties (order is important)
     // Body.set(body, {
     //   bounds: body.bounds || Bounds.create(body.vertices),
+    this.bounds = Bounds.create(this.vertices);
     //   positionPrev: body.positionPrev || Vector.clone(body.position),
+    this.positionPrev = Vector.clone(this.position);
     //   anglePrev: body.anglePrev || body.angle,
+    this.anglePrev = this.angle;
     //   vertices: body.vertices,
+    this.setVertices(this.vertices);
     //   parts: body.parts || [body],
     this.setParts([this]);
     //   isStatic: body.isStatic,
@@ -145,14 +147,18 @@ export class Body {
     //   mass: options.mass || body.mass,
     //   inertia: options.inertia || body.inertia
     // });
+    this.setAngle(this.angle);
+    this.setMass(this.mass);
 
     // // render properties
-    // var defaultFillStyle = (body.isStatic ? '#2e2b44' : Common.choose(['#006BA6', '#0496FF', '#FFBC42', '#D81159', '#8F2D56'])),
-    //   defaultStrokeStyle = '#000';
-    // body.render.fillStyle = body.render.fillStyle || defaultFillStyle;
-    // body.render.strokeStyle = body.render.strokeStyle || defaultStrokeStyle;
-    // body.render.sprite.xOffset += -(body.bounds.min.x - body.position.x) / (body.bounds.max.x - body.bounds.min.x);
-    // body.render.sprite.yOffset += -(body.bounds.min.y - body.position.y) / (body.bounds.max.y - body.bounds.min.y);
+    if (!this.fillStyle) {
+      this.fillStyle = '#2e2b44';
+    }
+    if (!this.strokeStyle) {
+      this.strokeStyle = '#000';
+    }
+    this.xOffset += -(this.bounds.min.x - this.position.x) / (this.bounds.max.x - this.bounds.min.x);
+    this.yOffset += -(this.bounds.min.y - this.position.y) / (this.bounds.max.y - this.bounds.min.y);
   }
 
   public static None: Body = new Body();
@@ -1520,6 +1526,7 @@ export class Composite {
 export class World extends Composite {
   public gravity: Vector = new Vector(0, 0);
   public bounds: Bounds = Bounds.Null;
+  public colors: string[] = chooseColorScheme('pop');
   public constructor() {
     super();
   }

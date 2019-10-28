@@ -86,18 +86,8 @@ const _cancelAnimationFrame = window.cancelAnimationFrame;
 //     || window.webkitCancelAnimationFrame || window.msCancelAnimationFrame;
 // }
 
-// var defaults = {
-//   controller: Render,
-//   engine: null,
-//   element: null,
-//   canvas: null,
-//   mouse: null,
-//   frameRequestId: null,
-
 export class Render {
-  //public controller = null;
   public engine: any; // Engine
-  // public element: HTMLElement;
   public mouse: any; //Mouse;
   private world: World;
   public canvas: HTMLCanvasElement;
@@ -114,7 +104,7 @@ export class Render {
     wireframeBackground: '#0f0f13',
     //hasBounds: !!options.bounds,
     enabled: true,
-    wireframes: true,
+    wireframes: false, //
     showSleeping: true,
     showDebug: false,
     showBroadphase: false,
@@ -133,7 +123,6 @@ export class Render {
     showMousePosition: false
   };
 
-
   /**
    * Creates a new renderer. The options parameter is an object that specifies any properties you wish to override the defaults.
    * All properties have default values, and many are pre-calculated automatically based on other properties.
@@ -146,12 +135,10 @@ export class Render {
   public constructor(engine: any, element: HTMLElement, options: any = {}) {
     this.engine = engine;
     this.world = engine.world;
-    Object.assign(this.options, options);
     console.log(element);
     this.canvas = createCanvas(element.clientWidth, element.clientHeight);
     element.appendChild(this.canvas);
-    console.log(this.canvas);
-    //this.mouse = engine.setRender(this);
+    this.mouse = engine.setRender(this);
 
     //var render = Common.extend(defaults, options);
     // if (this.canvas) {
