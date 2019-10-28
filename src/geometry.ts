@@ -1,5 +1,4 @@
-import { Common } from './core';
-import { Body } from './body';
+import { Common } from './commons';
 
 /**
 * The `Matter.Vector` module contains methods for creating and manipulating vectors.
@@ -245,14 +244,14 @@ export type Contact = {
 
 export class Vertex extends Vector {
   public index: number;
-  public body: Body;
+  public body: any;
   public isInternal: boolean;
   public contact: Contact;
 
-  constructor(x: number, y: number, index: number, body?: Body) {
+  constructor(x: number, y: number, index: number, body: any) {
     super(x, y);
     this.index = index;
-    this.body = body === undefined ? Body.None : body;
+    this.body = body;
     this.isInternal = false;
     this.contact = {
       vertex: this,
@@ -281,7 +280,7 @@ export class Vertices {
    * @param {body} body
    */
 
-  public static create(points: Vector[], body?: Body) {
+  public static create(points: Vector[], body: any) {
     var vertices = [];
 
     for (var i = 0; i < points.length; i++) {
@@ -302,7 +301,7 @@ export class Vertices {
    * @return {vertices} vertices
    */
 
-  public static fromPath(path: number[], body?: Body) {
+  public static fromPath(path: number[], body?: any) {
     // if (typeof path === 'string') {
     //   const points: Vector[] = [];
     //   const pathPattern = /L?\s*([-\d.e]+)[\s,]*([-\d.e]+)*/ig;

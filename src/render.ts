@@ -1,8 +1,9 @@
-import { Common, Events, Mouse, Engine } from './core';
-import { Vector, Vertex, Vertices, Bounds, Axes } from './geometry';
-import { Body, Composite, World } from './body';
-import { Constraint } from './constraint';
+import { Common, Events } from './commons';
+import { Vector, Bounds } from './geometry';
+import { Body, Constraint, Composite, World } from './body';
 import { Pair, Grid } from './collision';
+//import { Mouse } from './mouse';
+
 
 /**
  * Description
@@ -70,6 +71,8 @@ const _getTexture = (imagePath: string) => {
 * @class Render
 */
 
+//const _requestAnimationFrame: any = undefined;
+//const _cancelAnimationFrame: any = undefined;
 
 const _requestAnimationFrame = window.requestAnimationFrame;
 const _cancelAnimationFrame = window.cancelAnimationFrame;
@@ -93,9 +96,10 @@ const _cancelAnimationFrame = window.cancelAnimationFrame;
 
 export class Render {
   //public controller = null;
-  public engine: Engine;
+  public engine: any; // Engine
   // public element: HTMLElement;
-  public mouse: Mouse;
+  public mouse: any; //Mouse;
+  private world: World;
   public canvas: HTMLCanvasElement;
   context: CanvasRenderingContext2D;//?
   // background: string;
@@ -139,12 +143,16 @@ export class Render {
    * @return {render} A new renderer
    */
 
-  public constructor(engine: Engine, element: HTMLElement, options: any = {}) {
+  public constructor(engine: any, element: HTMLElement, options: any = {}) {
     this.engine = engine;
-    this.mouse = engine.setRender(this);
+    this.world = engine.world;
     Object.assign(this.options, options);
+    console.log(element);
     this.canvas = createCanvas(element.clientWidth, element.clientHeight);
     element.appendChild(this.canvas);
+    console.log(this.canvas);
+    //this.mouse = engine.setRender(this);
+
     //var render = Common.extend(defaults, options);
     // if (this.canvas) {
     //   this.canvas.width = this.options.width || this.canvas.width;
@@ -166,11 +174,13 @@ export class Render {
    */
 
   public run() {
-    const loop = (time: number) => {
-      this.frameRequestId = _requestAnimationFrame(loop);
-      this.world();
-    };
-    loop(1);//
+    if (_requestAnimationFrame !== undefined) {
+      const loop = (time: number) => {
+        this.frameRequestId = _requestAnimationFrame(loop);
+        this.draw();
+      };
+      loop(1);//
+    }
   }
 
   /**
@@ -179,8 +189,10 @@ export class Render {
    * @param {render} render
    */
   public stop() {
-    _cancelAnimationFrame(this.frameRequestId);
-  };
+    if (_cancelAnimationFrame !== undefined) {
+      _cancelAnimationFrame(this.frameRequestId);
+    }
+  }
 
   /**
    * Sets the pixel ratio of the renderer and updates the canvas.
@@ -337,7 +349,7 @@ export class Render {
 
   private currentBackground = '';
 
-  public world() {
+  public draw() {
     const engine = this.engine;
     const world = engine.world;
     const canvas = this.canvas;
@@ -913,7 +925,7 @@ export class Render {
    * @param {mouse} mouse
    * @param {RenderingContext} context
    */
-  private mousePosition(mouse: Mouse, context: CanvasRenderingContext2D) {
+  private mousePosition(mouse: any, context: CanvasRenderingContext2D) {
     var c = context;
     c.fillStyle = 'rgba(255,255,255,0.8)';
     c.fillText(mouse.position.x + '  ' + mouse.position.y, mouse.position.x + 5, mouse.position.y - 5);

@@ -1,7 +1,8 @@
-import { Vector, Contact, Vertex, Vertices, Bounds, Axes } from './geometry';
-import { Body, Filter, Impulse } from './body';
-import { Common, Engine } from './core';
+import { Common } from './commons';
+import { Vector, Contact, Vertex, Vertices, Bounds } from './geometry';
+import { Body, Filter, World } from './body';
 import { Bodies } from './factory';
+//import { Common, Engine } from './core';
 
 /**
 * The `Matter.Pair` module contains methods for creating and manipulating collision pairs.
@@ -692,7 +693,7 @@ type Region = {
 export class Grid {
 
   public controller = Grid;
-  public detector = Detector.collisions;
+  public readonly detector = Detector.collisions;
   public buckets: { [key: string]: Body[]; } = {};
   public pairs: { [key: string]: any[]; } = {}; // id: [body, body, 1]
   public pairsList: any[] = [];
@@ -721,8 +722,7 @@ export class Grid {
    * @param {boolean} forceUpdate
    */
 
-  public static update(grid: Grid, bodies: Body[], engine: Engine, forceUpdate: boolean) {
-    const world = engine.world;
+  public static update(grid: Grid, bodies: Body[], world: World, forceUpdate: boolean) {
     const buckets = grid.buckets;
     var gridChanged = false;
 
@@ -1443,6 +1443,5 @@ export class Resolver {
       }
     }
   }
-
 }
 

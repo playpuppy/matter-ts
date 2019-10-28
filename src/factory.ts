@@ -1,8 +1,6 @@
 
 import { Body, Composite } from './body';
-import { Constraint } from './constraint';
 import { Vertices, Vector, Bounds } from './geometry';
-import { Common } from './core';
 
 /**
 * The `Matter.Bodies` module contains factory methods for creating rigid body models 
