@@ -109,7 +109,6 @@ export class Body {
   public area = 0;
   public mass = 0;
   public inertia = 0;
-  public _original: any = null;
   public inverseInertia: number = 0;
   public inverseMass: number = 0;
 
@@ -129,8 +128,6 @@ export class Body {
     this.setVertices(this.vertices);
     //   parts: body.parts || [body],
     this.setParts([this]);
-    //   isStatic: body.isStatic,
-    this.setStatic(options['isStatic'] === true)
     //   isSleeping: body.isSleeping,
     //   parent: body.parent || body
     // });
@@ -150,6 +147,8 @@ export class Body {
     this.setAngle(this.angle);
     this.setMass(this.mass);
     this.setInertia(this.inertia);
+    //   isStatic: body.isStatic,
+    this.setStatic(options['isStatic'] === true);
 
     // // render properties
     if (this.fillStyle === '') {
@@ -161,6 +160,7 @@ export class Body {
     }
     this.xOffset += -(this.bounds.min.x - this.position.x) / (this.bounds.max.x - this.bounds.min.x);
     this.yOffset += -(this.bounds.min.y - this.position.y) / (this.bounds.max.y - this.bounds.min.y);
+    //console.log(`inertia=${this.inertia}, inverseIneria=${this.inverseInertia}, isStatic=${this.isStatic}`);
   }
 
   //public static None: Body = new Body();
@@ -251,8 +251,10 @@ export class Body {
    */
 
   public setInertia(inertia: number) {
-    this.inertia = inertia;
-    this.inverseInertia = 1 / this.inertia;
+    if (!this.isStatic) {
+      this.inertia = inertia;
+      this.inverseInertia = 1 / this.inertia;
+    }
   }
 
   /**
@@ -991,10 +993,7 @@ export class Constraint {
       (this.bodyB ? this.bodyB.position.y : 0) + this.pointB!.y
     );
   }
-
 }
-
-
 
 /**
 * The `Matter.Composite` module contains methods for creating and manipulating composite bodies.

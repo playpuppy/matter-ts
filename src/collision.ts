@@ -2,6 +2,7 @@ import { Common } from './commons';
 import { Vector, Contact, Vertex, Vertices, Bounds } from './geometry';
 import { Body, Filter, World } from './body';
 import { Bodies } from './factory';
+//import assert from 'assert';
 
 /**
 * The `Matter.Pair` module contains methods for creating and manipulating collision pairs.
@@ -1232,12 +1233,14 @@ export class Resolver {
           var part = body.parts[j];
           Vertices.translate(part.vertices, body.positionImpulse);
           Bounds.update(part.bounds, part.vertices, body.velocity);
+          //assert(!Number.isNaN(part.position.x));
           part.position.x += body.positionImpulse.x;
           part.position.y += body.positionImpulse.y;
         }
 
         // move the body without changing velocity
         body.positionPrev.x += body.positionImpulse.x;
+        //assert(!Number.isNaN(body.positionPrev.x), '1242');
         body.positionPrev.y += body.positionImpulse.y;
 
         if (Vector.dot(body.positionImpulse, body.velocity) < 0) {
@@ -1305,6 +1308,7 @@ export class Resolver {
           if (!(bodyA.isStatic || bodyA.isSleeping)) {
             offset = Vector.sub(contactVertex, bodyA.position, tempA);
             bodyA.positionPrev.x += impulse.x * bodyA.inverseMass;
+            //assert(!Number.isNaN(bodyA.positionPrev.x), '1310');
             bodyA.positionPrev.y += impulse.y * bodyA.inverseMass;
             bodyA.anglePrev += Vector.cross(offset, impulse) * bodyA.inverseInertia;
           }
@@ -1312,6 +1316,7 @@ export class Resolver {
           if (!(bodyB.isStatic || bodyB.isSleeping)) {
             offset = Vector.sub(contactVertex, bodyB.position, tempA);
             bodyB.positionPrev.x -= impulse.x * bodyB.inverseMass;
+            //assert(!Number.isNaN(bodyB.positionPrev.x), '1318');
             bodyB.positionPrev.y -= impulse.y * bodyB.inverseMass;
             bodyB.anglePrev -= Vector.cross(offset, impulse) * bodyB.inverseInertia;
           }
@@ -1394,6 +1399,9 @@ export class Resolver {
           oBcN = Vector.cross(offsetB, normal),
           share = contactShare / (bodyA.inverseMass + bodyB.inverseMass + bodyA.inverseInertia * oAcN * oAcN + bodyB.inverseInertia * oBcN * oBcN);
 
+        //console.log(`share=${share}, contactShare=${contactShare} oAcN=${oAcN}, oBcN=${oBcN}`);
+        //console.log(`bodyA.inverseMass=${bodyA.inverseMass}, ${bodyA.inverseInertia}`);
+
         normalImpulse *= share;
         tangentImpulse *= share;
 
@@ -1422,6 +1430,7 @@ export class Resolver {
         }
 
         // total impulse from contact
+
         impulse.x = (normal.x * normalImpulse) + (tangent.x * tangentImpulse);
         impulse.y = (normal.y * normalImpulse) + (tangent.y * tangentImpulse);
 

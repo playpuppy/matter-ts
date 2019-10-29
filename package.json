@@ -11,7 +11,7 @@
   "author": "Kimio Kuramitsu",
   "license": "MIT License",
   "devDependencies": {
-    "@types/jest": "^24.0.19",
+    "@types/jest": "^24.0.20",
     "@types/node": "^12.7.12",
     "jest": "^24.9.0",
     "parcel": "^1.12.4",
@@ -34,7 +34,10 @@
       }
     },
     "testMatch": [
-      "**/__tests__/*.+(ts|tsx|js)"
+      "**/test/*.+(ts|tsx|js)"
     ]
+  },
+  "dependencies": {
+    "matter-js": "^0.14.2"
   }
 }

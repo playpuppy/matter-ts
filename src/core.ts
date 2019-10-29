@@ -5,7 +5,6 @@ import { Pair, Pairs, Resolver, Grid } from "./collision";
 import { Render } from "./render";
 import { Mouse, MouseConstraint } from "./mouse";
 
-
 /**
 * The `Matter.Sleeping` module contains methods to manage the sleeping state of bodies.
 *
@@ -318,12 +317,13 @@ export class Engine {
   * @param {number} [correction=1]
   */
 
-  private dumpPos(msg: string, c: any[], bodies: Body[]) {
-    if (c.length > 0) {
-      console.log(`${msg} id=${bodies[0].id} x=${bodies[0].position.x} y=${bodies[0].position.y} x'=${bodies[0].positionPrev.x} y'=${bodies[0].positionPrev.y}`);
-      console.log(bodies[0]);
-    }
-  }
+  // private dumpPos(msg: string, c: any[], bodies: Body[]) {
+  //   if (c.length > 0) {
+  //     //console.log(`${msg} id=${bodies[0].id} x=${bodies[0].position.x} y=${bodies[0].position.y} x'=${bodies[0].positionPrev.x} y'=${bodies[0].positionPrev.y}`);
+  //     console.log(`${msg} id=${bodies[7].id} inverseInteria=${bodies[7].inverseInertia} interia=${bodies[7].inertia} isStatic=${bodies[7].isStatic}`);
+  //     //console.log(bodies[0]);
+  //   }
+  // }
 
   public update(delta = 1000 / 60, correction = 1) {
     const world = this.world;
@@ -361,9 +361,11 @@ export class Engine {
 
     // update all constraints (first pass)
     Constraint.preSolveAll(allBodies);
+
     for (var i = 0; i < this.constraintIterations; i++) {
       Constraint.solveAll(allConstraints, timing.timeScale);
     }
+
     Constraint.postSolveAll(allBodies);
 
     // broadphase pass: find potential collision pairs
@@ -387,13 +389,14 @@ export class Engine {
 
     // narrowphase pass: find actual collisions, then create or update collision pairs
     const collisions = broadphase.detector(broadphasePairs, this);
+    //this.dumpPos('start0', collisions, allBodies);
 
     // update collision pairs
     const pairs = this.pairs;
     const timestamp = timing.timestamp;
     pairs.update2(collisions, timestamp);
     pairs.removeOld(timestamp);
-    this.dumpPos('start', collisions, allBodies);
+
     // wake up bodies involved in collisions
     if (this.enableSleeping)
       Sleeping.afterCollisions(pairs.list, timing.timeScale);
@@ -405,13 +408,10 @@ export class Engine {
 
     // iteratively resolve position between collisions
     Resolver.preSolvePosition(pairs.list);
-    this.dumpPos('pre', collisions, allBodies);
     for (i = 0; i < this.positionIterations; i++) {
       Resolver.solvePosition(pairs.list, allBodies, timing.timeScale);
     }
-    this.dumpPos('solve', collisions, allBodies);
     Resolver.postSolvePosition(allBodies);
-    this.dumpPos('post', collisions, allBodies);
 
     // update all constraints (second pass)
     Constraint.preSolveAll(allBodies);
@@ -419,16 +419,13 @@ export class Engine {
       Constraint.solveAll(allConstraints, timing.timeScale);
     }
     Constraint.postSolveAll(allBodies);
-    this.dumpPos('end', collisions, allBodies);
 
     // iteratively resolve velocity between collisions
     Resolver.preSolveVelocity(pairs.list);
-    this.dumpPos('pre_v', collisions, allBodies);
     for (let i = 0; i < this.velocityIterations; i += 1) {
-      this.dumpPos(`v[${i}]`, collisions, allBodies);
+      //this.dumpPos(`v[${i}]`, collisions, allBodies);
       Resolver.solveVelocity(pairs.list, timing.timeScale);
     }
-    this.dumpPos('post_v', collisions, allBodies);
 
     // trigger collision events
     if (pairs.collisionActive.length > 0)
