@@ -123,7 +123,7 @@ export class Vector {
    */
   public static cross(vectorA: Vector, vectorB: Vector): number {
     return (vectorA.x * vectorB.y) - (vectorA.y * vectorB.x);
-  };
+  }
 
   /**
    * Returns the cross-product of three vectors.

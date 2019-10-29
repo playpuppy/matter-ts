@@ -1,5 +1,5 @@
 
-import { Body, Composite } from './body';
+import { Body, Composite, Constraint } from './body';
 import { Vertices, Vector, Bounds } from './geometry';
 
 /**
@@ -522,21 +522,21 @@ export class Composites {
   //  * @param {number} length
   //  * @return {composite} A new composite newtonsCradle body
   //  */
-  // Composites.newtonsCradle = function (xx, yy, number, size, length) {
-  //   var newtonsCradle = Composite.create({ label: 'Newtons Cradle' });
 
-  //   for (var i = 0; i < number; i++) {
-  //     var separation = 1.9,
-  //       circle = Bodies.circle(xx + i * (size * separation), yy + length, size,
-  //         { inertia: Infinity, restitution: 1, friction: 0, frictionAir: 0.0001, slop: 1 }),
-  //       constraint = Constraint.create({ pointA: { x: xx + i * (size * separation), y: yy }, bodyB: circle });
+  public static newtonsCradle(xx: number, yy: number, num: number, size: number, length: number) {
+    var newtonsCradle = new Composite({ label: 'Newtons Cradle' });
 
-  //     Composite.addBody(newtonsCradle, circle);
-  //     Composite.addConstraint(newtonsCradle, constraint);
-  //   }
+    for (var i = 0; i < num; i++) {
+      var separation = 1.9,
+        circle = Bodies.circle(xx + i * (size * separation), yy + length, size,
+          { inertia: Infinity, restitution: 1, friction: 0, frictionAir: 0.0001, slop: 1 }),
+        constraint = new Constraint({ pointA: { x: xx + i * (size * separation), y: yy }, bodyB: circle });
 
-  //   return newtonsCradle;
-  // };
+      newtonsCradle.addBody(circle);
+      newtonsCradle.addConstraint(constraint);
+    }
+    return newtonsCradle;
+  }
 
   // /**
   //  * Creates a composite with simple car setup of bodies and constraints.

@@ -4,7 +4,7 @@ import { Body, Composite, World } from './body';
 import { Detector } from './collision';
 import { Render } from './render';
 //import { Constraint } from './constraint';
-import { Bodies } from './factory';
+import { Bodies, Composites } from './factory';
 import { Engine, Runner } from './core';
 
 // export class Vector {
@@ -46,7 +46,8 @@ world.add([
   Bodies.rectangle(400, 600, 800, 50, { world, isStatic: true }),
   Bodies.rectangle(800, 300, 50, 600, { world, isStatic: true }),
   Bodies.rectangle(0, 300, 50, 600, { world, isStatic: true }),
-  Bodies.rectangle(400, 300, 100, 100, { world, isStatic: true })
+  Bodies.rectangle(400, 300, 100, 100, { world, isStatic: true }),
+  Composites.newtonsCradle(100, 100, 5, 50, 150)
 ]);
 
 render.run();

@@ -1,6 +1,5 @@
 import { Common } from './commons';
 import { Vector, Vertex, Vertices, Bounds, Axes } from './geometry';
-import { chooseColorScheme } from './color';
 
 const _inertiaScale = 4;
 const _nextCollidingGroupId = 1;
@@ -46,7 +45,7 @@ export const DefaultCollisionFilter: Filter = {
 // }
 
 export class Body {
-  public id: number; //Common.nextId(),
+  public id: number = -1;
   public type = 'body';
   public label = 'Body';
   public parts: Body[] = []; //
@@ -114,8 +113,8 @@ export class Body {
 
   public constructor(options: any = {}) {
     Object.assign(this, options);
-    this.id = options.world ? options.world.newId() : Common.nextId();
-    this.vertices = options['vertices'] || Vertices.fromPath([0, 0, 40, 0, 40, 40, 0, 40]);
+    this.id = this.id === -1 ? Common.nextId() : this.id;
+    this.vertices = options.vertices || Vertices.fromPath([0, 0, 40, 0, 40, 40, 0, 40]);
     // // init required properties (order is important)
     // Body.set(body, {
     //   bounds: body.bounds || Bounds.create(body.vertices),
@@ -152,8 +151,7 @@ export class Body {
 
     // // render properties
     if (this.fillStyle === '') {
-      this.fillStyle =
-        options.world ? Common.choose(options.world.colors) : '#2e2b44';
+      this.fillStyle = '#2e2b44';
     }
     if (this.strokeStyle === '') {
       this.strokeStyle = this.fillStyle;
@@ -174,7 +172,7 @@ export class Body {
 
   public setStatic(isStatic: boolean) {
     for (var i = 0; i < this.parts.length; i++) {
-      var part = this.parts[i];
+      var part: any = this.parts[i];
       part.isStatic = isStatic;
 
       if (isStatic) {
@@ -702,7 +700,6 @@ export class Constraint {
   public renderType = 'line'; // type
   public anchors = true;
 
-
   /**
    * Creates a new constraint.
    * All properties have default values, and many are pre-calculated automatically based on other properties.
@@ -1007,7 +1004,7 @@ export class Constraint {
 */
 
 export class Composite {
-  public id: number;
+  public id: number = -1;
   public type = 'composite';
   public parent: Composite | undefined;
   public isModified = false;
@@ -1029,7 +1026,7 @@ export class Composite {
     if (options) {
       Object.assign(this, options)
     }
-    this.id = options.world ? options.world.newId() : Common.nextId();
+    this.id = this.id === -1 ? Common.nextId() : this.id;
     this.parent = undefined;
   }
 
@@ -1523,15 +1520,11 @@ export class Composite {
 }
 
 export class World extends Composite {
-  public gravity: Vector = new Vector(0, 0);
+  public gravity: Vector = new Vector(0, 1);
   public bounds: Bounds = new Bounds(0, 0, 1000, 1000);
-  public colors: string[];
-  public uniqueId = 0;
+
   public constructor(options: any = {}) {
     super(options);
-    this.colors = chooseColorScheme(options.colorScheme || 'pop');
   }
-  public newId() {
-    return this.uniqueId++;
-  }
+
 }
