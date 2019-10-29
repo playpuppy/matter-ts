@@ -978,7 +978,6 @@ export class Grid {
     }
     return pairs;
   }
-
 }
 
 /**
@@ -1097,7 +1096,6 @@ export class Query {
     }
     return result;
   }
-
 }
 
 /**
@@ -1120,14 +1118,18 @@ export class Resolver {
    * @param {pair[]} pairs
    */
   public static preSolvePosition(pairs: Pair[]) {
+    var i,
+      pair,
+      activeCount;
+
     // find total contacts on each body
-    for (var i = 0; i < pairs.length; i++) {
-      const pair = pairs[i];
+    for (i = 0; i < pairs.length; i++) {
+      pair = pairs[i];
 
       if (!pair.isActive)
         continue;
 
-      const activeCount = pair.activeContacts.length;
+      activeCount = pair.activeContacts.length;
       pair.collision!.parentA.totalContacts += activeCount;
       pair.collision!.parentB.totalContacts += activeCount;
     }
@@ -1142,69 +1144,69 @@ export class Resolver {
    */
 
   public static solvePosition(pairs: Pair[], bodies: Body[], timeScale: number) {
-    //var i,
-    // normalX,
-    // normalY,
-    // pair,
-    // collision,
-    // bodyA,
-    // bodyB,
-    // normal,
-    // separation,
-    // penetration,
-    // positionImpulseA,
-    // positionImpulseB,
-    // contactShare,
-    // bodyBtoAX,
-    // bodyBtoAY,
-    // positionImpulse,
-    const impulseCoefficient = timeScale * _positionDampen;
+    var i,
+      normalX,
+      normalY,
+      pair,
+      collision,
+      bodyA,
+      bodyB,
+      normal,
+      separation,
+      penetration,
+      positionImpulseA,
+      positionImpulseB,
+      contactShare,
+      bodyBtoAX,
+      bodyBtoAY,
+      positionImpulse,
+      impulseCoefficient = timeScale * _positionDampen;
 
-    for (var i = 0; i < bodies.length; i++) {
-      const body = bodies[i];
+    for (i = 0; i < bodies.length; i++) {
+      var body = bodies[i];
       body.previousPositionImpulse.x = body.positionImpulse.x;
       body.previousPositionImpulse.y = body.positionImpulse.y;
     }
 
     // find impulses required to resolve penetration
-    for (var i = 0; i < pairs.length; i++) {
-      const pair = pairs[i];
+    for (i = 0; i < pairs.length; i++) {
+      pair = pairs[i];
 
       if (!pair.isActive || pair.isSensor)
         continue;
 
-      const collision = pair.collision!;
-      const bodyA = collision.parentA;
-      const bodyB = collision.parentB;
-      const normal = collision.normal;
+      collision = pair.collision!;
+      bodyA = collision.parentA;
+      bodyB = collision.parentB;
+      normal = collision.normal;
 
-      const positionImpulseA = bodyA.previousPositionImpulse;
-      const positionImpulseB = bodyB.previousPositionImpulse;
+      positionImpulseA = bodyA.previousPositionImpulse;
+      positionImpulseB = bodyB.previousPositionImpulse;
 
-      const penetration = collision.penetration;
+      penetration = collision.penetration;
 
-      const bodyBtoAX = positionImpulseB.x - positionImpulseA.x + penetration.x;
-      const bodyBtoAY = positionImpulseB.y - positionImpulseA.y + penetration.y;
+      bodyBtoAX = positionImpulseB.x - positionImpulseA.x + penetration.x;
+      bodyBtoAY = positionImpulseB.y - positionImpulseA.y + penetration.y;
 
-      const normalX = normal.x;
-      const normalY = normal.y;
+      normalX = normal.x;
+      normalY = normal.y;
 
-      const separation = normalX * bodyBtoAX + normalY * bodyBtoAY;
+      separation = normalX * bodyBtoAX + normalY * bodyBtoAY;
       pair.separation = separation;
 
-      var positionImpulse = (separation - pair.slop) * impulseCoefficient;
+      positionImpulse = (separation - pair.slop) * impulseCoefficient;
 
       if (bodyA.isStatic || bodyB.isStatic)
         positionImpulse *= 2;
 
       if (!(bodyA.isStatic || bodyA.isSleeping)) {
-        const contactShare = positionImpulse / bodyA.totalContacts;
+        contactShare = positionImpulse / bodyA.totalContacts;
         bodyA.positionImpulse.x += normalX * contactShare;
         bodyA.positionImpulse.y += normalY * contactShare;
       }
 
       if (!(bodyB.isStatic || bodyB.isSleeping)) {
-        const contactShare = positionImpulse / bodyB.totalContacts;
+        contactShare = positionImpulse / bodyB.totalContacts;
         bodyB.positionImpulse.x -= normalX * contactShare;
         bodyB.positionImpulse.y -= normalY * contactShare;
       }
@@ -1219,7 +1221,7 @@ export class Resolver {
 
   public static postSolvePosition(bodies: Body[]) {
     for (var i = 0; i < bodies.length; i++) {
-      const body = bodies[i];
+      var body = bodies[i];
 
       // reset contact count
       body.totalContacts = 0;
@@ -1257,42 +1259,42 @@ export class Resolver {
    * @param {pair[]} pairs
    */
   public static preSolveVelocity(pairs: Pair[]) {
-    // var i,
-    //   j,
-    //   pair,
-    //   contacts,
-    //   collision,
-    //   bodyA,
-    //   bodyB,
-    //   normal,
-    //   tangent,
-    //   contact,
-    //   contactVertex,
-    //   normalImpulse,
-    //   tangentImpulse,
-    //   offset,
-    const impulse = Vector._temp[0];
-    const tempA = Vector._temp[1];
+    var i,
+      j,
+      pair,
+      contacts,
+      collision,
+      bodyA,
+      bodyB,
+      normal,
+      tangent,
+      contact,
+      contactVertex,
+      normalImpulse,
+      tangentImpulse,
+      offset,
+      impulse = Vector._temp[0],
+      tempA = Vector._temp[1];
 
-    for (var i = 0; i < pairs.length; i++) {
-      const pair = pairs[i];
+    for (i = 0; i < pairs.length; i++) {
+      pair = pairs[i];
 
       if (!pair.isActive || pair.isSensor)
         continue;
 
-      const contacts = pair.activeContacts;
-      const collision = pair.collision!;
-      const bodyA = collision.parentA;
-      const bodyB = collision.parentB;
-      const normal = collision.normal;
-      const tangent = collision.tangent;
+      contacts = pair.activeContacts;
+      collision = pair.collision!;
+      bodyA = collision.parentA;
+      bodyB = collision.parentB;
+      normal = collision.normal;
+      tangent = collision.tangent;
 
       // resolve each contact
-      for (var j = 0; j < contacts.length; j++) {
-        const contact = contacts[j];
-        const contactVertex = contact.vertex;
-        const normalImpulse = contact.normalImpulse;
-        const tangentImpulse = contact.tangentImpulse;
+      for (j = 0; j < contacts.length; j++) {
+        contact = contacts[j];
+        contactVertex = contact.vertex;
+        normalImpulse = contact.normalImpulse;
+        tangentImpulse = contact.tangentImpulse;
 
         if (normalImpulse !== 0 || tangentImpulse !== 0) {
           // total impulse from contact
@@ -1301,14 +1303,14 @@ export class Resolver {
 
           // apply impulse from contact
           if (!(bodyA.isStatic || bodyA.isSleeping)) {
-            const offset = Vector.sub(contactVertex, bodyA.position, tempA);
+            offset = Vector.sub(contactVertex, bodyA.position, tempA);
             bodyA.positionPrev.x += impulse.x * bodyA.inverseMass;
             bodyA.positionPrev.y += impulse.y * bodyA.inverseMass;
             bodyA.anglePrev += Vector.cross(offset, impulse) * bodyA.inverseInertia;
           }
 
           if (!(bodyB.isStatic || bodyB.isSleeping)) {
-            const offset = Vector.sub(contactVertex, bodyB.position, tempA);
+            offset = Vector.sub(contactVertex, bodyB.position, tempA);
             bodyB.positionPrev.x -= impulse.x * bodyB.inverseMass;
             bodyB.positionPrev.y -= impulse.y * bodyB.inverseMass;
             bodyB.anglePrev -= Vector.cross(offset, impulse) * bodyB.inverseInertia;
@@ -1324,28 +1326,29 @@ export class Resolver {
    * @param {pair[]} pairs
    * @param {number} timeScale
    */
-  public static solveVelocity = function (pairs: Pair[], timeScale: number) {
-    const timeScaleSquared = timeScale * timeScale;
-    const impulse = Vector._temp[0];
-    const tempA = Vector._temp[1];
-    const tempB = Vector._temp[2];
-    const tempC = Vector._temp[3];
-    const tempD = Vector._temp[4];
-    const tempE = Vector._temp[5];
+
+  public static solveVelocity(pairs: Pair[], timeScale: number) {
+    var timeScaleSquared = timeScale * timeScale,
+      impulse = Vector._temp[0],
+      tempA = Vector._temp[1],
+      tempB = Vector._temp[2],
+      tempC = Vector._temp[3],
+      tempD = Vector._temp[4],
+      tempE = Vector._temp[5];
 
     for (var i = 0; i < pairs.length; i++) {
-      const pair = pairs[i];
+      var pair = pairs[i];
 
       if (!pair.isActive || pair.isSensor)
         continue;
 
-      const collision = pair.collision as Collision;
-      const bodyA = collision.parentA;
-      const bodyB = collision.parentB;
-      const normal = collision.normal;
-      const tangent = collision.tangent;
-      const contacts = pair.activeContacts;
-      const contactShare = 1 / contacts.length;
+      var collision = pair.collision!,
+        bodyA = collision.parentA,
+        bodyB = collision.parentB,
+        normal = collision.normal,
+        tangent = collision.tangent,
+        contacts = pair.activeContacts,
+        contactShare = 1 / contacts.length;
 
       // update body velocities
       bodyA.velocity.x = bodyA.position.x - bodyA.positionPrev.x;
@@ -1357,7 +1360,7 @@ export class Resolver {
 
       // resolve each contact
       for (var j = 0; j < contacts.length; j++) {
-        const contact = contacts[j],
+        var contact = contacts[j],
           contactVertex = contact.vertex,
           offsetA = Vector.sub(contactVertex, bodyA.position, tempA),
           offsetB = Vector.sub(contactVertex, bodyB.position, tempB),
@@ -1437,5 +1440,6 @@ export class Resolver {
       }
     }
   }
+
 }
 

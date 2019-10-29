@@ -165,7 +165,7 @@ export class Vector {
     output.x = vectorA.x - vectorB.x;
     output.y = vectorA.y - vectorB.y;
     return output;
-  };
+  }
 
   /**
    * Multiplies a vector and a scalar.
@@ -176,7 +176,7 @@ export class Vector {
    */
   public static mult(vector: Vector, scalar: number): Vector {
     return new Vector(vector.x * scalar, vector.y * scalar);
-  };
+  }
 
   /**
    * Divides a vector and a scalar.

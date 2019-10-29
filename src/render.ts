@@ -1184,7 +1184,7 @@ export class Render {
       if (!pair.isActive)
         continue;
 
-      collision = pair.collision;
+      collision = pair.collision!;
 
       if (pair.activeContacts.length > 0) {
         var normalPosX = pair.activeContacts[0].vertex.x,
@@ -1243,7 +1243,7 @@ export class Render {
       if (!pair.isActive)
         continue;
 
-      collision = pair.collision;
+      collision = pair.collision!;
       bodyA = collision.bodyA;
       bodyB = collision.bodyB;
 

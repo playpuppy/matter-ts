@@ -318,6 +318,13 @@ export class Engine {
   * @param {number} [correction=1]
   */
 
+  private dumpPos(msg: string, c: any[], bodies: Body[]) {
+    if (c.length > 0) {
+      console.log(`${msg} id=${bodies[0].id} x=${bodies[0].position.x} y=${bodies[0].position.y} x'=${bodies[0].positionPrev.x} y'=${bodies[0].positionPrev.y}`);
+      console.log(bodies[0]);
+    }
+  }
+
   public update(delta = 1000 / 60, correction = 1) {
     const world = this.world;
     const timing = this.timing;
@@ -385,12 +392,8 @@ export class Engine {
     const pairs = this.pairs;
     const timestamp = timing.timestamp;
     pairs.update2(collisions, timestamp);
-    if (collisions.length > 0) {
-      console.log(collisions);
-      console.log(pairs);
-    }
     pairs.removeOld(timestamp);
-
+    this.dumpPos('start', collisions, allBodies);
     // wake up bodies involved in collisions
     if (this.enableSleeping)
       Sleeping.afterCollisions(pairs.list, timing.timeScale);
@@ -402,10 +405,13 @@ export class Engine {
 
     // iteratively resolve position between collisions
     Resolver.preSolvePosition(pairs.list);
+    this.dumpPos('pre', collisions, allBodies);
     for (i = 0; i < this.positionIterations; i++) {
       Resolver.solvePosition(pairs.list, allBodies, timing.timeScale);
     }
+    this.dumpPos('solve', collisions, allBodies);
     Resolver.postSolvePosition(allBodies);
+    this.dumpPos('post', collisions, allBodies);
 
     // update all constraints (second pass)
     Constraint.preSolveAll(allBodies);
@@ -413,12 +419,16 @@ export class Engine {
       Constraint.solveAll(allConstraints, timing.timeScale);
     }
     Constraint.postSolveAll(allBodies);
+    this.dumpPos('end', collisions, allBodies);
 
     // iteratively resolve velocity between collisions
     Resolver.preSolveVelocity(pairs.list);
+    this.dumpPos('pre_v', collisions, allBodies);
     for (let i = 0; i < this.velocityIterations; i += 1) {
+      this.dumpPos(`v[${i}]`, collisions, allBodies);
       Resolver.solveVelocity(pairs.list, timing.timeScale);
     }
+    this.dumpPos('post_v', collisions, allBodies);
 
     // trigger collision events
     if (pairs.collisionActive.length > 0)
@@ -487,9 +497,9 @@ export class Engine {
    * @param {body[]} bodies
    */
 
-  private static bodiesClearForces = function (bodies: Body[]) {
+  private static bodiesClearForces(bodies: Body[]) {
     for (var i = 0; i < bodies.length; i++) {
-      var body = bodies[i];
+      const body = bodies[i];
       // reset force buffers
       body.force.x = 0;
       body.force.y = 0;
